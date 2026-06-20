@@ -109,16 +109,66 @@ enum CancellationSource {
   SYSTEM
 }
 
+enum WaitlistStatus {
+  OPEN
+  MATCHED
+  CONTACTED
+  CONVERTED
+  EXPIRED
+  CANCELLED
+}
+
+enum WaitlistSource {
+  PUBLIC_WEB
+  ADMIN
+  WHATSAPP
+  SYSTEM
+}
+
+enum ReleasedSlotStatus {
+  OPEN
+  RESERVED
+  EXPIRED
+  CLOSED
+}
+
+enum ReleasedSlotSource {
+  CANCELLATION
+  RESCHEDULE
+  ADMIN
+  SYSTEM
+}
+
+enum ReleasedSlotCandidateStatus {
+  SUGGESTED
+  CONTACTED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum DepositPolicyType {
+  FIXED_CLP
+  PERCENTAGE
+}
+
+enum PolicyStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
 model Business {
-  id        String           @id @default(cuid())
-  slug      String           @unique @db.VarChar(100)
-  name      String           @db.VarChar(160)
-  vertical  BusinessVertical
-  timezone  String           @default("America/Santiago") @db.VarChar(64)
-  currency  String           @default("CLP") @db.VarChar(3)
-  status    BusinessStatus   @default(ACTIVE)
-  createdAt DateTime         @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime         @updatedAt @db.Timestamptz(3)
+  id                    String           @id @default(cuid())
+  slug                  String           @unique @db.VarChar(100)
+  name                  String           @db.VarChar(160)
+  vertical              BusinessVertical
+  timezone              String           @default("America/Santiago") @db.VarChar(64)
+  currency              String           @default("CLP") @db.VarChar(3)
+  status                BusinessStatus   @default(ACTIVE)
+  createdAt             DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime         @updatedAt @db.Timestamptz(3)
+  defaultNoShowPolicyId String?
 
   locations                     Location[]
   memberships                   Membership[]
@@ -137,6 +187,13 @@ model Business {
   appointments                  Appointment[]
   appointmentServices           AppointmentService[]
   appointmentSegments           AppointmentSegment[]
+  waitlistEntries               WaitlistEntry[]
+  waitlistServices              WaitlistService[]
+  releasedSlots                 ReleasedSlot[]
+  releasedSlotCandidates        ReleasedSlotCandidate[]
+  depositPolicies               DepositPolicy[]
+  noShowPolicies                NoShowPolicy[]                 @relation("BusinessNoShowPolicies")
+  defaultNoShowPolicy           NoShowPolicy?                  @relation("BusinessDefaultNoShowPolicy", fields: [id, defaultNoShowPolicyId], references: [businessId, id], onDelete: Restrict)
 
   @@index([status])
 }
@@ -164,6 +221,8 @@ model Location {
   timeOffEntries                TimeOff[]
   appointments                  Appointment[]
   appointmentSegments           AppointmentSegment[]
+  waitlistEntries               WaitlistEntry[]
+  releasedSlots                 ReleasedSlot[]
 
   @@unique([businessId, slug])
   @@unique([businessId, id])
@@ -220,7 +279,8 @@ model Customer {
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
 
-  appointments Appointment[]
+  appointments    Appointment[]
+  waitlistEntries WaitlistEntry[]
 
   @@unique([businessId, id])
   @@index([businessId, phone])
@@ -263,6 +323,7 @@ model Service {
   sortOrder           Int           @default(0)
   createdAt           DateTime      @default(now()) @db.Timestamptz(3)
   updatedAt           DateTime      @updatedAt @db.Timestamptz(3)
+  depositPolicyId     String?
 
   business             Business              @relation(fields: [businessId], references: [id], onDelete: Restrict)
   category             ServiceCategory?      @relation(fields: [businessId, categoryId], references: [businessId, id], onDelete: Restrict)
@@ -271,11 +332,14 @@ model Service {
   professionalServices ProfessionalService[]
   packItems            PackItem[]
   appointmentServices  AppointmentService[]
+  waitlistServices     WaitlistService[]
+  depositPolicy        DepositPolicy?        @relation(fields: [businessId, depositPolicyId], references: [businessId, id], onDelete: Restrict)
 
   @@unique([businessId, slug])
   @@unique([businessId, id])
   @@index([businessId, categoryId, status, sortOrder])
   @@index([businessId, isMainService, status, sortOrder])
+  @@index([businessId, depositPolicyId])
 }
 
 model ServiceAddon {
@@ -311,12 +375,14 @@ model Professional {
   createdAt   DateTime           @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime           @updatedAt @db.Timestamptz(3)
 
-  business            Business                       @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  locations           ProfessionalLocation[]
-  services            ProfessionalService[]
-  availabilityRules   ProfessionalAvailabilityRule[]
-  timeOffEntries      TimeOff[]
-  appointmentSegments AppointmentSegment[]
+  business                 Business                       @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  locations                ProfessionalLocation[]
+  services                 ProfessionalService[]
+  availabilityRules        ProfessionalAvailabilityRule[]
+  timeOffEntries           TimeOff[]
+  appointmentSegments      AppointmentSegment[]
+  preferredWaitlistEntries WaitlistEntry[]
+  releasedSlots            ReleasedSlot[]
 
   @@unique([businessId, slug])
   @@unique([businessId, id])
@@ -362,24 +428,28 @@ model ProfessionalService {
 }
 
 model Pack {
-  id          String        @id @default(cuid())
-  businessId  String
-  name        String        @db.VarChar(160)
-  slug        String        @db.VarChar(100)
-  description String?       @db.Text
-  priceClp    Int
-  status      CatalogStatus @default(ACTIVE)
-  sortOrder   Int           @default(0)
-  createdAt   DateTime      @default(now()) @db.Timestamptz(3)
-  updatedAt   DateTime      @updatedAt @db.Timestamptz(3)
+  id              String        @id @default(cuid())
+  businessId      String
+  name            String        @db.VarChar(160)
+  slug            String        @db.VarChar(100)
+  description     String?       @db.Text
+  priceClp        Int
+  status          CatalogStatus @default(ACTIVE)
+  sortOrder       Int           @default(0)
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @db.Timestamptz(3)
+  depositPolicyId String?
 
   business            Business             @relation(fields: [businessId], references: [id], onDelete: Restrict)
   items               PackItem[]
   appointmentServices AppointmentService[]
+  waitlistServices    WaitlistService[]
+  depositPolicy       DepositPolicy?       @relation(fields: [businessId, depositPolicyId], references: [businessId, id], onDelete: Restrict)
 
   @@unique([businessId, slug])
   @@unique([businessId, id])
   @@index([businessId, status, sortOrder])
+  @@index([businessId, depositPolicyId])
 }
 
 model PackItem {
@@ -487,11 +557,13 @@ model Appointment {
   createdAt                 DateTime            @default(now()) @db.Timestamptz(3)
   updatedAt                 DateTime            @updatedAt @db.Timestamptz(3)
 
-  business Business             @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  location Location             @relation(fields: [businessId, locationId], references: [businessId, id], onDelete: Restrict)
-  customer Customer             @relation(fields: [businessId, customerId], references: [businessId, id], onDelete: Restrict)
-  services AppointmentService[]
-  segments AppointmentSegment[]
+  business                 Business             @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  location                 Location             @relation(fields: [businessId, locationId], references: [businessId, id], onDelete: Restrict)
+  customer                 Customer             @relation(fields: [businessId, customerId], references: [businessId, id], onDelete: Restrict)
+  services                 AppointmentService[]
+  segments                 AppointmentSegment[]
+  convertedWaitlistEntries WaitlistEntry[]
+  releasedSlots            ReleasedSlot[]
 
   @@unique([businessId, bookingRequestId])
   @@unique([businessId, id])
@@ -546,9 +618,159 @@ model AppointmentSegment {
   appointmentService AppointmentService @relation(fields: [businessId, appointmentId, appointmentServiceId], references: [businessId, appointmentId, id], onDelete: Restrict)
   professional       Professional       @relation(fields: [businessId, professionalId], references: [businessId, id], onDelete: Restrict)
   location           Location           @relation(fields: [businessId, locationId], references: [businessId, id], onDelete: Restrict)
+  releasedSlots      ReleasedSlot[]
 
   @@unique([businessId, appointmentId, sequence])
+  @@unique([businessId, id])
   @@index([businessId, professionalId, startsAt, endsAt, status])
   @@index([businessId, locationId, startsAt, status])
   @@index([businessId, appointmentServiceId, sequence])
+}
+
+model WaitlistEntry {
+  id                      String         @id @default(cuid())
+  businessId              String
+  locationId              String
+  customerId              String?
+  status                  WaitlistStatus @default(OPEN)
+  source                  WaitlistSource
+  desiredDateLocal        DateTime?      @db.Date
+  desiredStartTimeLocal   String?        @db.VarChar(5)
+  desiredEndTimeLocal     String?        @db.VarChar(5)
+  preferredProfessionalId String?
+  acceptsAnyProfessional  Boolean        @default(true)
+  acceptsSplitServices    Boolean        @default(false)
+  maxWaitMinutes          Int?
+  priorityScore           Int            @default(0)
+  customerNameSnapshot    String         @db.VarChar(160)
+  customerPhoneSnapshot   String         @db.VarChar(32)
+  customerEmailSnapshot   String?        @db.VarChar(320)
+  notes                   String?        @db.Text
+  expiresAt               DateTime?      @db.Timestamptz(3)
+  convertedAppointmentId  String?
+  createdAt               DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime       @updatedAt @db.Timestamptz(3)
+
+  business              Business                @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  location              Location                @relation(fields: [businessId, locationId], references: [businessId, id], onDelete: Restrict)
+  customer              Customer?               @relation(fields: [businessId, customerId], references: [businessId, id], onDelete: Restrict)
+  preferredProfessional Professional?           @relation(fields: [businessId, preferredProfessionalId], references: [businessId, id], onDelete: Restrict)
+  convertedAppointment  Appointment?            @relation(fields: [businessId, convertedAppointmentId], references: [businessId, id], onDelete: Restrict)
+  services              WaitlistService[]
+  candidates            ReleasedSlotCandidate[]
+
+  @@unique([businessId, id])
+  @@index([businessId, locationId, status, desiredDateLocal])
+  @@index([businessId, customerId, status])
+  @@index([businessId, preferredProfessionalId, status, desiredDateLocal])
+  @@index([businessId, expiresAt, status])
+  @@index([businessId, convertedAppointmentId])
+}
+
+model WaitlistService {
+  id                             String   @id @default(cuid())
+  businessId                     String
+  waitlistEntryId                String
+  serviceId                      String?
+  packId                         String?
+  sequence                       Int
+  serviceNameSnapshot            String   @db.VarChar(160)
+  servicePriceClpSnapshot        Int
+  serviceDurationMinutesSnapshot Int
+  createdAt                      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt                      DateTime @updatedAt @db.Timestamptz(3)
+
+  business      Business      @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  waitlistEntry WaitlistEntry @relation(fields: [businessId, waitlistEntryId], references: [businessId, id], onDelete: Restrict)
+  service       Service?      @relation(fields: [businessId, serviceId], references: [businessId, id], onDelete: Restrict)
+  pack          Pack?         @relation(fields: [businessId, packId], references: [businessId, id], onDelete: Restrict)
+
+  @@unique([businessId, waitlistEntryId, sequence])
+  @@index([businessId, serviceId])
+  @@index([businessId, packId])
+}
+
+model ReleasedSlot {
+  id                   String             @id @default(cuid())
+  businessId           String
+  locationId           String
+  appointmentId        String?
+  appointmentSegmentId String?
+  professionalId       String
+  startsAt             DateTime           @db.Timestamptz(3)
+  endsAt               DateTime           @db.Timestamptz(3)
+  status               ReleasedSlotStatus @default(OPEN)
+  source               ReleasedSlotSource
+  createdAt            DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime           @updatedAt @db.Timestamptz(3)
+
+  business           Business                @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  location           Location                @relation(fields: [businessId, locationId], references: [businessId, id], onDelete: Restrict)
+  appointment        Appointment?            @relation(fields: [businessId, appointmentId], references: [businessId, id], onDelete: Restrict)
+  appointmentSegment AppointmentSegment?     @relation(fields: [businessId, appointmentSegmentId], references: [businessId, id], onDelete: Restrict)
+  professional       Professional            @relation(fields: [businessId, professionalId], references: [businessId, id], onDelete: Restrict)
+  candidates         ReleasedSlotCandidate[]
+
+  @@unique([businessId, id])
+  @@index([businessId, locationId, status, startsAt])
+  @@index([businessId, professionalId, status, startsAt])
+  @@index([businessId, appointmentId])
+  @@index([businessId, appointmentSegmentId])
+}
+
+model ReleasedSlotCandidate {
+  id              String                      @id @default(cuid())
+  businessId      String
+  releasedSlotId  String
+  waitlistEntryId String
+  score           Int
+  reason          String?                     @db.VarChar(500)
+  status          ReleasedSlotCandidateStatus @default(SUGGESTED)
+  contactedAt     DateTime?                   @db.Timestamptz(3)
+  createdAt       DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime                    @updatedAt @db.Timestamptz(3)
+
+  business      Business      @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  releasedSlot  ReleasedSlot  @relation(fields: [businessId, releasedSlotId], references: [businessId, id], onDelete: Restrict)
+  waitlistEntry WaitlistEntry @relation(fields: [businessId, waitlistEntryId], references: [businessId, id], onDelete: Restrict)
+
+  @@unique([businessId, releasedSlotId, waitlistEntryId])
+  @@index([businessId, releasedSlotId, status, score])
+  @@index([businessId, waitlistEntryId, status])
+}
+
+model DepositPolicy {
+  id                    String            @id @default(cuid())
+  businessId            String
+  name                  String            @db.VarChar(160)
+  type                  DepositPolicyType
+  fixedAmountClp        Int?
+  percentageBasisPoints Int?
+  status                PolicyStatus      @default(ACTIVE)
+  createdAt             DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime          @updatedAt @db.Timestamptz(3)
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  services Service[]
+  packs    Pack[]
+
+  @@unique([businessId, id])
+  @@index([businessId, status, type])
+}
+
+model NoShowPolicy {
+  id                            String       @id @default(cuid())
+  businessId                    String
+  name                          String       @db.VarChar(160)
+  lateCancellationWindowMinutes Int
+  trackNoShow                   Boolean      @default(true)
+  status                        PolicyStatus @default(ACTIVE)
+  createdAt                     DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt                     DateTime     @updatedAt @db.Timestamptz(3)
+
+  business           Business   @relation("BusinessNoShowPolicies", fields: [businessId], references: [id], onDelete: Restrict)
+  defaultForBusiness Business[] @relation("BusinessDefaultNoShowPolicy")
+
+  @@unique([businessId, id])
+  @@index([businessId, status])
 }

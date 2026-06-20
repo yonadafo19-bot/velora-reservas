@@ -37,3 +37,14 @@ adyacentes, cancelados o marcados para no bloquear disponibilidad.
 Prisma no representa extensiones ni constraints de exclusión. Las migraciones
 futuras deben preservar esta protección, y el rol que aplica migraciones necesita
 permiso para instalar `btree_gist` si la extensión no existe.
+
+## Lista de espera y políticas
+
+La intención de lista de espera conserva preferencias, contacto y snapshots de
+servicios. Los cupos liberados y candidatos solo preparan matching futuro; no
+ejecutan disponibilidad ni contacto automático.
+
+Las políticas de seña son configuración y no representan pagos. La migración
+exige monto fijo o porcentaje, nunca ambos, y limita porcentajes a 0-10000 puntos
+base. Las reglas no-show solo almacenan ventana y seguimiento; no cobran ni
+aplican sanciones automáticas.

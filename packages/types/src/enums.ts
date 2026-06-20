@@ -62,6 +62,55 @@ export enum CancellationSource {
   SYSTEM = "SYSTEM",
 }
 
+export enum WaitlistStatus {
+  OPEN = "OPEN",
+  MATCHED = "MATCHED",
+  CONTACTED = "CONTACTED",
+  CONVERTED = "CONVERTED",
+  EXPIRED = "EXPIRED",
+  CANCELLED = "CANCELLED",
+}
+
+export enum WaitlistSource {
+  PUBLIC_WEB = "PUBLIC_WEB",
+  ADMIN = "ADMIN",
+  WHATSAPP = "WHATSAPP",
+  SYSTEM = "SYSTEM",
+}
+
+export enum ReleasedSlotStatus {
+  OPEN = "OPEN",
+  RESERVED = "RESERVED",
+  EXPIRED = "EXPIRED",
+  CLOSED = "CLOSED",
+}
+
+export enum ReleasedSlotSource {
+  CANCELLATION = "CANCELLATION",
+  RESCHEDULE = "RESCHEDULE",
+  ADMIN = "ADMIN",
+  SYSTEM = "SYSTEM",
+}
+
+export enum ReleasedSlotCandidateStatus {
+  SUGGESTED = "SUGGESTED",
+  CONTACTED = "CONTACTED",
+  ACCEPTED = "ACCEPTED",
+  REJECTED = "REJECTED",
+  EXPIRED = "EXPIRED",
+}
+
+export enum DepositPolicyType {
+  FIXED_CLP = "FIXED_CLP",
+  PERCENTAGE = "PERCENTAGE",
+}
+
+export enum PolicyStatus {
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
+  ARCHIVED = "ARCHIVED",
+}
+
 export enum LoyaltyTier {
   STANDARD = "STANDARD",
   PREFERRED = "PREFERRED",
