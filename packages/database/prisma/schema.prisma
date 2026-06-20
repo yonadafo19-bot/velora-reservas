@@ -81,6 +81,34 @@ enum TimeOffStatus {
   CANCELLED
 }
 
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum AppointmentSource {
+  PUBLIC_WEB
+  ADMIN
+  WHATSAPP
+  SYSTEM
+}
+
+enum AppointmentSegmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum CancellationSource {
+  CUSTOMER
+  ADMIN
+  SYSTEM
+}
+
 model Business {
   id        String           @id @default(cuid())
   slug      String           @unique @db.VarChar(100)
@@ -106,6 +134,9 @@ model Business {
   businessHours                 BusinessHour[]
   professionalAvailabilityRules ProfessionalAvailabilityRule[]
   timeOffEntries                TimeOff[]
+  appointments                  Appointment[]
+  appointmentServices           AppointmentService[]
+  appointmentSegments           AppointmentSegment[]
 
   @@index([status])
 }
@@ -131,6 +162,8 @@ model Location {
   businessHours                 BusinessHour[]
   professionalAvailabilityRules ProfessionalAvailabilityRule[]
   timeOffEntries                TimeOff[]
+  appointments                  Appointment[]
+  appointmentSegments           AppointmentSegment[]
 
   @@unique([businessId, slug])
   @@unique([businessId, id])
@@ -187,6 +220,9 @@ model Customer {
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
 
+  appointments Appointment[]
+
+  @@unique([businessId, id])
   @@index([businessId, phone])
   @@index([businessId, email])
   @@index([businessId, loyaltyTier])
@@ -234,6 +270,7 @@ model Service {
   addonServiceAddons   ServiceAddon[]        @relation("AddonServiceAddons")
   professionalServices ProfessionalService[]
   packItems            PackItem[]
+  appointmentServices  AppointmentService[]
 
   @@unique([businessId, slug])
   @@unique([businessId, id])
@@ -274,11 +311,12 @@ model Professional {
   createdAt   DateTime           @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime           @updatedAt @db.Timestamptz(3)
 
-  business          Business                       @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  locations         ProfessionalLocation[]
-  services          ProfessionalService[]
-  availabilityRules ProfessionalAvailabilityRule[]
-  timeOffEntries    TimeOff[]
+  business            Business                       @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  locations           ProfessionalLocation[]
+  services            ProfessionalService[]
+  availabilityRules   ProfessionalAvailabilityRule[]
+  timeOffEntries      TimeOff[]
+  appointmentSegments AppointmentSegment[]
 
   @@unique([businessId, slug])
   @@unique([businessId, id])
@@ -335,8 +373,9 @@ model Pack {
   createdAt   DateTime      @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime      @updatedAt @db.Timestamptz(3)
 
-  business Business   @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  items    PackItem[]
+  business            Business             @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  items               PackItem[]
+  appointmentServices AppointmentService[]
 
   @@unique([businessId, slug])
   @@unique([businessId, id])
@@ -418,4 +457,98 @@ model TimeOff {
   @@index([businessId, startsAt, endsAt, status])
   @@index([businessId, professionalId, startsAt])
   @@index([businessId, locationId, startsAt])
+}
+
+model Appointment {
+  id                        String              @id @default(cuid())
+  businessId                String
+  locationId                String
+  customerId                String
+  status                    AppointmentStatus   @default(PENDING)
+  source                    AppointmentSource
+  startAt                   DateTime            @db.Timestamptz(3)
+  endAt                     DateTime            @db.Timestamptz(3)
+  totalPriceClp             Int
+  totalDurationMinutes      Int
+  currencySnapshot          String              @default("CLP") @db.VarChar(3)
+  timezoneSnapshot          String              @default("America/Santiago") @db.VarChar(64)
+  bookingRequestId          String?             @db.VarChar(128)
+  publicTokenHash           String?             @unique @db.VarChar(128)
+  customerNotes             String?             @db.Text
+  internalNotes             String?             @db.Text
+  isFirstVisit              Boolean             @default(false)
+  cancelledAt               DateTime?           @db.Timestamptz(3)
+  cancellationReason        String?             @db.VarChar(500)
+  cancellationSource        CancellationSource?
+  isLateCancellation        Boolean             @default(false)
+  markedNoShowAt            DateTime?           @db.Timestamptz(3)
+  depositRequiredSnapshot   Boolean             @default(false)
+  depositPolicySnapshotJson Json?
+  createdAt                 DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt                 DateTime            @updatedAt @db.Timestamptz(3)
+
+  business Business             @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  location Location             @relation(fields: [businessId, locationId], references: [businessId, id], onDelete: Restrict)
+  customer Customer             @relation(fields: [businessId, customerId], references: [businessId, id], onDelete: Restrict)
+  services AppointmentService[]
+  segments AppointmentSegment[]
+
+  @@unique([businessId, bookingRequestId])
+  @@unique([businessId, id])
+  @@unique([businessId, id, locationId])
+  @@index([businessId, locationId, status, startAt])
+  @@index([businessId, customerId, startAt])
+  @@index([businessId, status, startAt, endAt])
+}
+
+model AppointmentService {
+  id                             String   @id @default(cuid())
+  businessId                     String
+  appointmentId                  String
+  serviceId                      String?
+  packId                         String?
+  sequence                       Int
+  serviceNameSnapshot            String   @db.VarChar(160)
+  servicePriceClpSnapshot        Int
+  serviceDurationMinutesSnapshot Int
+  createdAt                      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt                      DateTime @updatedAt @db.Timestamptz(3)
+
+  business    Business             @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  appointment Appointment          @relation(fields: [businessId, appointmentId], references: [businessId, id], onDelete: Restrict)
+  service     Service?             @relation(fields: [businessId, serviceId], references: [businessId, id], onDelete: Restrict)
+  pack        Pack?                @relation(fields: [businessId, packId], references: [businessId, id], onDelete: Restrict)
+  segments    AppointmentSegment[]
+
+  @@unique([businessId, appointmentId, sequence])
+  @@unique([businessId, appointmentId, id])
+  @@index([businessId, serviceId])
+  @@index([businessId, packId])
+}
+
+model AppointmentSegment {
+  id                   String                   @id @default(cuid())
+  businessId           String
+  appointmentId        String
+  appointmentServiceId String
+  professionalId       String
+  locationId           String
+  sequence             Int
+  startsAt             DateTime                 @db.Timestamptz(3)
+  endsAt               DateTime                 @db.Timestamptz(3)
+  blocksAvailability   Boolean                  @default(true)
+  status               AppointmentSegmentStatus @default(SCHEDULED)
+  createdAt            DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime                 @updatedAt @db.Timestamptz(3)
+
+  business           Business           @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  appointment        Appointment        @relation(fields: [businessId, appointmentId, locationId], references: [businessId, id, locationId], onDelete: Restrict)
+  appointmentService AppointmentService @relation(fields: [businessId, appointmentId, appointmentServiceId], references: [businessId, appointmentId, id], onDelete: Restrict)
+  professional       Professional       @relation(fields: [businessId, professionalId], references: [businessId, id], onDelete: Restrict)
+  location           Location           @relation(fields: [businessId, locationId], references: [businessId, id], onDelete: Restrict)
+
+  @@unique([businessId, appointmentId, sequence])
+  @@index([businessId, professionalId, startsAt, endsAt, status])
+  @@index([businessId, locationId, startsAt, status])
+  @@index([businessId, appointmentServiceId, sequence])
 }

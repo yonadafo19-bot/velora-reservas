@@ -43,6 +43,25 @@ export enum AppointmentStatus {
   NO_SHOW = "NO_SHOW",
 }
 
+export enum AppointmentSource {
+  PUBLIC_WEB = "PUBLIC_WEB",
+  ADMIN = "ADMIN",
+  WHATSAPP = "WHATSAPP",
+  SYSTEM = "SYSTEM",
+}
+
+export enum AppointmentSegmentStatus {
+  SCHEDULED = "SCHEDULED",
+  COMPLETED = "COMPLETED",
+  CANCELLED = "CANCELLED",
+}
+
+export enum CancellationSource {
+  CUSTOMER = "CUSTOMER",
+  ADMIN = "ADMIN",
+  SYSTEM = "SYSTEM",
+}
+
 export enum LoyaltyTier {
   STANDARD = "STANDARD",
   PREFERRED = "PREFERRED",
