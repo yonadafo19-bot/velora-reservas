@@ -3,11 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@11.5.1",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": ">=11 <12"
+  },
   "scripts": {
     "dev": "pnpm --filter @velora/web dev",
-    "build": "pnpm --filter @velora/web build",
+    "build": "pnpm -r --if-present run build",
     "start": "pnpm --filter @velora/web start",
-    "lint": "pnpm --filter @velora/web lint"
+    "lint": "pnpm -r --if-present run lint",
+    "typecheck": "pnpm -r --if-present run typecheck"
   },
   "devDependencies": {
     "next": "16.2.9"
