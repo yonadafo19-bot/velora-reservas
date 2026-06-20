@@ -60,3 +60,15 @@ Las órdenes retail solo preparan venta asistida con snapshots. No implementan
 checkout, pagos, boleta ni facturación. Los tipos, recursos y requisitos por
 servicio preparan disponibilidad futura, pero no reservan recursos ni se conectan
 a `AppointmentSegment` en esta fase.
+
+## Trazabilidad
+
+`AuditLog`, `AppointmentStatusHistory` e `InventoryMovement` son registros
+append-only por contrato: no tienen `updatedAt` y la futura capa de repositorio
+solo debe permitir inserciones. No se agregan triggers de auditoría en esta fase.
+
+Los JSON de auditoría deben construirse con allowlists y redacción antes de
+persistirlos. Nunca deben contener secretos, tokens, passwords, credenciales ni
+PII innecesaria. `ipAddress` y `userAgent` son opcionales y tienen longitud
+limitada. Cada movimiento conserva estados anterior y siguiente de stock y
+reserva, además de una clave de idempotencia opcional por tenant.
