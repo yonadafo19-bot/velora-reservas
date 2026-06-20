@@ -7,17 +7,25 @@
     "build": "nest build",
     "start": "node dist/main.js",
     "lint": "eslint src",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm build && node --test test/tenant.guard.test.cjs"
   },
   "dependencies": {
     "@nestjs/common": "11.1.27",
     "@nestjs/core": "11.1.27",
     "@nestjs/platform-express": "11.1.27",
+    "@prisma/adapter-pg": "7.8.0",
+    "@velora/database": "workspace:*",
+    "@velora/types": "workspace:*",
+    "dotenv": "17.4.2",
+    "jose": "6.2.3",
+    "pg": "8.22.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2"
   },
   "devDependencies": {
     "@nestjs/cli": "11.0.23",
-    "@types/node": "24.10.1"
+    "@types/node": "24.10.1",
+    "@types/pg": "8.20.0"
   }
 }
