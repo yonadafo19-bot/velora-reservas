@@ -8,6 +8,7 @@ import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 
 import { AuthGuard } from "./auth/auth.guard";
 import { AuthModule } from "./auth/auth.module";
+import { AuditModule } from "./common/audit/audit.module";
 import { ConfigModule } from "./common/config/config.module";
 import { DatabaseModule } from "./common/database/database.module";
 import { HttpErrorFilter } from "./common/filters/http-error.filter";
@@ -23,6 +24,7 @@ import { TenancyModule } from "./tenancy/tenancy.module";
     DatabaseModule,
     AuthModule,
     TenancyModule,
+    AuditModule,
     HealthModule,
   ],
   providers: [
