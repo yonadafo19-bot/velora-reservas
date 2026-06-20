@@ -9,8 +9,27 @@ Paquete aislado de persistencia PostgreSQL de Velora.
 3. Ejecutar `corepack pnpm db:validate` y `corepack pnpm db:generate` desde la raíz.
 4. Aplicar migraciones con `corepack pnpm db:migrate` solo sobre una base aprobada.
 
-No existe seed en esta fase: crear negocios, usuarios o clientes ficticios no es
-necesario para validar la fundación y mezclaría datos demo con persistencia real.
+## Seeds demo por vertical
+
+El seed crea dos tenants totalmente separados: `velora-barberia-demo` y
+`velora-beauty-studio-demo`. Incluye catálogo, profesionales, horarios, packs,
+clientes ficticios, productos, inventario, recomendaciones y recursos.
+
+Solo debe ejecutarse sobre una base de desarrollo aprobada. Requiere una
+`DATABASE_URL` explícita y la confirmación `VELORA_SEED_CONFIRM=SEED_VELORA_DEMOS`:
+
+```powershell
+$env:DATABASE_URL = "postgresql://..."
+$env:VELORA_SEED_CONFIRM = "SEED_VELORA_DEMOS"
+corepack pnpm db:seed
+```
+
+El usuario `owner.demo@velora.invalid` y su `authSubject` de desarrollo no
+representan una cuenta Supabase real y deben reemplazarse al integrar Auth.
+El seed usa upserts e IDs determinísticos, por lo que puede repetirse sin duplicar
+filas. Una nueva ejecución restablece los valores demo administrados por el seed.
+No genera `AuditLog`: la carga inicial demo queda deliberadamente fuera de la
+trazabilidad operativa.
 
 ## Enums compartidos
 
