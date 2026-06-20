@@ -49,6 +49,38 @@ enum LoyaltyTier {
   VIP
 }
 
+enum CatalogStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ProfessionalStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum AvailabilityStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum Weekday {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum TimeOffStatus {
+  ACTIVE
+  CANCELLED
+}
+
 model Business {
   id        String           @id @default(cuid())
   slug      String           @unique @db.VarChar(100)
@@ -60,9 +92,20 @@ model Business {
   createdAt DateTime         @default(now()) @db.Timestamptz(3)
   updatedAt DateTime         @updatedAt @db.Timestamptz(3)
 
-  locations   Location[]
-  memberships Membership[]
-  customers   Customer[]
+  locations                     Location[]
+  memberships                   Membership[]
+  customers                     Customer[]
+  serviceCategories             ServiceCategory[]
+  services                      Service[]
+  serviceAddons                 ServiceAddon[]
+  professionals                 Professional[]
+  professionalLocations         ProfessionalLocation[]
+  professionalServices          ProfessionalService[]
+  packs                         Pack[]
+  packItems                     PackItem[]
+  businessHours                 BusinessHour[]
+  professionalAvailabilityRules ProfessionalAvailabilityRule[]
+  timeOffEntries                TimeOff[]
 
   @@index([status])
 }
@@ -84,7 +127,13 @@ model Location {
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
 
+  professionalLocations         ProfessionalLocation[]
+  businessHours                 BusinessHour[]
+  professionalAvailabilityRules ProfessionalAvailabilityRule[]
+  timeOffEntries                TimeOff[]
+
   @@unique([businessId, slug])
+  @@unique([businessId, id])
   @@index([businessId, status])
 }
 
@@ -141,4 +190,232 @@ model Customer {
   @@index([businessId, phone])
   @@index([businessId, email])
   @@index([businessId, loyaltyTier])
+}
+
+model ServiceCategory {
+  id          String        @id @default(cuid())
+  businessId  String
+  name        String        @db.VarChar(160)
+  slug        String        @db.VarChar(100)
+  description String?       @db.Text
+  sortOrder   Int           @default(0)
+  status      CatalogStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime      @updatedAt @db.Timestamptz(3)
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  services Service[]
+
+  @@unique([businessId, slug])
+  @@unique([businessId, id])
+  @@index([businessId, status, sortOrder])
+}
+
+model Service {
+  id                  String        @id @default(cuid())
+  businessId          String
+  categoryId          String?
+  name                String        @db.VarChar(160)
+  slug                String        @db.VarChar(100)
+  description         String?       @db.Text
+  basePriceClp        Int
+  durationMinutes     Int
+  bufferBeforeMinutes Int           @default(0)
+  bufferAfterMinutes  Int           @default(0)
+  status              CatalogStatus @default(ACTIVE)
+  isMainService       Boolean       @default(true)
+  sortOrder           Int           @default(0)
+  createdAt           DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime      @updatedAt @db.Timestamptz(3)
+
+  business             Business              @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  category             ServiceCategory?      @relation(fields: [businessId, categoryId], references: [businessId, id], onDelete: Restrict)
+  baseServiceAddons    ServiceAddon[]        @relation("BaseServiceAddons")
+  addonServiceAddons   ServiceAddon[]        @relation("AddonServiceAddons")
+  professionalServices ProfessionalService[]
+  packItems            PackItem[]
+
+  @@unique([businessId, slug])
+  @@unique([businessId, id])
+  @@index([businessId, categoryId, status, sortOrder])
+  @@index([businessId, isMainService, status, sortOrder])
+}
+
+model ServiceAddon {
+  id             String        @id @default(cuid())
+  businessId     String
+  baseServiceId  String
+  addonServiceId String
+  sortOrder      Int           @default(0)
+  status         CatalogStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
+
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  baseService  Service  @relation("BaseServiceAddons", fields: [businessId, baseServiceId], references: [businessId, id], onDelete: Restrict)
+  addonService Service  @relation("AddonServiceAddons", fields: [businessId, addonServiceId], references: [businessId, id], onDelete: Restrict)
+
+  @@unique([businessId, baseServiceId, addonServiceId])
+  @@index([businessId, baseServiceId, status, sortOrder])
+  @@index([businessId, addonServiceId])
+}
+
+model Professional {
+  id          String             @id @default(cuid())
+  businessId  String
+  displayName String             @db.VarChar(160)
+  slug        String             @db.VarChar(100)
+  roleTitle   String?            @db.VarChar(160)
+  bio         String?            @db.Text
+  phone       String?            @db.VarChar(32)
+  email       String?            @db.VarChar(320)
+  status      ProfessionalStatus @default(ACTIVE)
+  sortOrder   Int                @default(0)
+  createdAt   DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime           @updatedAt @db.Timestamptz(3)
+
+  business          Business                       @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  locations         ProfessionalLocation[]
+  services          ProfessionalService[]
+  availabilityRules ProfessionalAvailabilityRule[]
+  timeOffEntries    TimeOff[]
+
+  @@unique([businessId, slug])
+  @@unique([businessId, id])
+  @@index([businessId, status, sortOrder])
+}
+
+model ProfessionalLocation {
+  id             String             @id @default(cuid())
+  businessId     String
+  professionalId String
+  locationId     String
+  status         AvailabilityStatus @default(ACTIVE)
+  createdAt      DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime           @updatedAt @db.Timestamptz(3)
+
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  professional Professional @relation(fields: [businessId, professionalId], references: [businessId, id], onDelete: Restrict)
+  location     Location     @relation(fields: [businessId, locationId], references: [businessId, id], onDelete: Restrict)
+
+  @@unique([businessId, professionalId, locationId])
+  @@index([businessId, locationId, status])
+  @@index([businessId, professionalId, status])
+}
+
+model ProfessionalService {
+  id                    String             @id @default(cuid())
+  businessId            String
+  professionalId        String
+  serviceId             String
+  customPriceClp        Int?
+  customDurationMinutes Int?
+  status                AvailabilityStatus @default(ACTIVE)
+  createdAt             DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime           @updatedAt @db.Timestamptz(3)
+
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  professional Professional @relation(fields: [businessId, professionalId], references: [businessId, id], onDelete: Restrict)
+  service      Service      @relation(fields: [businessId, serviceId], references: [businessId, id], onDelete: Restrict)
+
+  @@unique([businessId, professionalId, serviceId])
+  @@index([businessId, serviceId, status])
+  @@index([businessId, professionalId, status])
+}
+
+model Pack {
+  id          String        @id @default(cuid())
+  businessId  String
+  name        String        @db.VarChar(160)
+  slug        String        @db.VarChar(100)
+  description String?       @db.Text
+  priceClp    Int
+  status      CatalogStatus @default(ACTIVE)
+  sortOrder   Int           @default(0)
+  createdAt   DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime      @updatedAt @db.Timestamptz(3)
+
+  business Business   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  items    PackItem[]
+
+  @@unique([businessId, slug])
+  @@unique([businessId, id])
+  @@index([businessId, status, sortOrder])
+}
+
+model PackItem {
+  id         String   @id @default(cuid())
+  businessId String
+  packId     String
+  serviceId  String
+  sequence   Int
+  quantity   Int      @default(1)
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  pack     Pack     @relation(fields: [businessId, packId], references: [businessId, id], onDelete: Restrict)
+  service  Service  @relation(fields: [businessId, serviceId], references: [businessId, id], onDelete: Restrict)
+
+  @@unique([businessId, packId, serviceId, sequence])
+  @@index([businessId, packId, sequence])
+  @@index([businessId, serviceId])
+}
+
+model BusinessHour {
+  id            String             @id @default(cuid())
+  businessId    String
+  locationId    String?
+  weekday       Weekday
+  opensAtLocal  String             @db.VarChar(5)
+  closesAtLocal String             @db.VarChar(5)
+  status        AvailabilityStatus @default(ACTIVE)
+  createdAt     DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime           @updatedAt @db.Timestamptz(3)
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  location Location? @relation(fields: [businessId, locationId], references: [businessId, id], onDelete: Restrict)
+
+  @@index([businessId, locationId, weekday, status])
+}
+
+model ProfessionalAvailabilityRule {
+  id             String             @id @default(cuid())
+  businessId     String
+  professionalId String
+  locationId     String
+  weekday        Weekday
+  startsAtLocal  String             @db.VarChar(5)
+  endsAtLocal    String             @db.VarChar(5)
+  status         AvailabilityStatus @default(ACTIVE)
+  createdAt      DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime           @updatedAt @db.Timestamptz(3)
+
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  professional Professional @relation(fields: [businessId, professionalId], references: [businessId, id], onDelete: Restrict)
+  location     Location     @relation(fields: [businessId, locationId], references: [businessId, id], onDelete: Restrict)
+
+  @@index([businessId, professionalId, locationId, weekday, status])
+  @@index([businessId, locationId, weekday, status])
+}
+
+model TimeOff {
+  id             String        @id @default(cuid())
+  businessId     String
+  professionalId String?
+  locationId     String?
+  startsAt       DateTime      @db.Timestamptz(3)
+  endsAt         DateTime      @db.Timestamptz(3)
+  reason         String?       @db.VarChar(500)
+  status         TimeOffStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
+
+  business     Business      @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  professional Professional? @relation(fields: [businessId, professionalId], references: [businessId, id], onDelete: Restrict)
+  location     Location?     @relation(fields: [businessId, locationId], references: [businessId, id], onDelete: Restrict)
+
+  @@index([businessId, startsAt, endsAt, status])
+  @@index([businessId, professionalId, startsAt])
+  @@index([businessId, locationId, startsAt])
 }

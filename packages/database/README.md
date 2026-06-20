@@ -18,3 +18,10 @@ Prisma genera enums propios para la capa de persistencia. `@velora/types`
 mantiene enums equivalentes para contratos sin depender de Prisma. Esta duplicación
 es temporal y deliberada; un test de paridad se agregará cuando la API comience a
 mapear modelos persistidos a contratos.
+
+## Restricciones SQL
+
+La migración de catálogo y agenda agrega checks PostgreSQL para precios y buffers
+no negativos, duraciones y cantidades positivas, horas locales `HH:mm` y rangos
+UTC válidos. Prisma no representa estos checks en `schema.prisma`; toda migración
+futura que toque esas tablas debe preservarlos y validarlos explícitamente.

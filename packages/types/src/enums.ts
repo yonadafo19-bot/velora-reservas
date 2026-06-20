@@ -49,6 +49,38 @@ export enum LoyaltyTier {
   VIP = "VIP",
 }
 
+export enum CatalogStatus {
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
+  ARCHIVED = "ARCHIVED",
+}
+
+export enum ProfessionalStatus {
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
+  ARCHIVED = "ARCHIVED",
+}
+
+export enum AvailabilityStatus {
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
+}
+
+export enum Weekday {
+  MONDAY = "MONDAY",
+  TUESDAY = "TUESDAY",
+  WEDNESDAY = "WEDNESDAY",
+  THURSDAY = "THURSDAY",
+  FRIDAY = "FRIDAY",
+  SATURDAY = "SATURDAY",
+  SUNDAY = "SUNDAY",
+}
+
+export enum TimeOffStatus {
+  ACTIVE = "ACTIVE",
+  CANCELLED = "CANCELLED",
+}
+
 export enum ActorType {
   CUSTOMER = "CUSTOMER",
   OWNER = "OWNER",
