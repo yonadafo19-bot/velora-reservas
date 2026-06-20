@@ -14,6 +14,15 @@ Las composiciones de Velora Barbería y Velora Belleza usan exclusivamente:
 
 Por lo tanto, no existen atribuciones externas ni licencias de imágenes pendientes en esta versión.
 
+## Tipografías
+
+La aplicación usa `next/font/google` para descargar y servir localmente durante el build:
+
+- **Outfit**, diseñada por Rodrigo Fuenzalida y publicada bajo SIL Open Font License 1.1.
+- **Cormorant Garamond**, diseñada por Christian Thalmann y publicada bajo SIL Open Font License 1.1.
+
+No se realizan solicitudes de tipografías a Google desde el navegador del visitante. Las fuentes quedan empaquetadas por Next.js y se utilizan únicamente como recursos tipográficos del producto.
+
 ## Incorporación futura de fotografías
 
 Antes de agregar una fotografía se debe registrar aquí:
@@ -30,4 +39,3 @@ No se deben usar imágenes encontradas en buscadores, redes sociales o sitios de
 ## Identidad
 
 “Velora Barbería” y “Velora Belleza” son conceptos ficticios creados únicamente para esta demostración comercial. El wordmark actual es provisional y no reemplaza un proceso posterior de identidad de marca.
-
