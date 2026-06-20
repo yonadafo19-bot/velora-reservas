@@ -7,6 +7,7 @@ La fase actual conserva la demo visual premium y mobile-first para barberías y 
 ## Workspace
 
 - `apps/web`: aplicación Next.js y experiencia visual actual.
+- `apps/api`: API NestJS versionada y fundamentos HTTP compartidos.
 - `packages/types`: enums y contratos compartidos sin dependencias de framework.
 - `packages/domain`: validaciones y reglas puras de dominio.
 
@@ -31,6 +32,17 @@ Para ejecutar la aplicación directamente por filtro:
 corepack pnpm --filter @velora/web dev
 ```
 
+La API se ejecuta por separado en `http://localhost:3001/api/v1`:
+
+```bash
+corepack pnpm dev:api
+```
+
+Health checks disponibles:
+
+- `GET /api/v1/health/live`
+- `GET /api/v1/health/ready`
+
 ## Validación
 
 ```bash
@@ -47,4 +59,12 @@ corepack pnpm --filter @velora/web typecheck
 corepack pnpm --filter @velora/web build
 ```
 
-La Fase 1 funciona con datos locales ficticios. Todavía no incluye API, NestJS, Prisma, PostgreSQL, autenticación, pagos, correos ni integraciones externas.
+Para validar solamente la API:
+
+```bash
+corepack pnpm --filter @velora/api lint
+corepack pnpm --filter @velora/api typecheck
+corepack pnpm --filter @velora/api build
+```
+
+La Fase 1 web funciona con datos locales ficticios. La API solo expone health checks y fundamentos HTTP; todavía no incluye endpoints de negocio, Prisma, PostgreSQL, autenticación, pagos, correos ni integraciones externas.

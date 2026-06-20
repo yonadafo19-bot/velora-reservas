@@ -9,8 +9,12 @@
   },
   "scripts": {
     "dev": "pnpm --filter @velora/web dev",
+    "dev:api": "pnpm --filter @velora/api dev",
+    "dev:web": "pnpm --filter @velora/web dev",
     "build": "pnpm -r --if-present run build",
     "start": "pnpm --filter @velora/web start",
+    "start:api": "pnpm --filter @velora/api start",
+    "start:web": "pnpm --filter @velora/web start",
     "lint": "pnpm -r --if-present run lint",
     "typecheck": "pnpm -r --if-present run typecheck"
   },
