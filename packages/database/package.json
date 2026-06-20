@@ -1,0 +1,35 @@
+{
+  "name": "@velora/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "prisma"
+  ],
+  "scripts": {
+    "build": "prisma generate && tsc -p tsconfig.json",
+    "lint": "eslint src/index.ts prisma.config.ts",
+    "typecheck": "prisma generate && tsc -p tsconfig.json --noEmit",
+    "prisma:format": "prisma format --schema prisma/schema.prisma",
+    "prisma:validate": "prisma validate --schema prisma/schema.prisma",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev"
+  },
+  "dependencies": {
+    "@prisma/client": "7.8.0"
+  },
+  "devDependencies": {
+    "dotenv": "17.4.2",
+    "prisma": "7.8.0"
+  }
+}

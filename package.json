@@ -15,6 +15,10 @@
     "start": "pnpm --filter @velora/web start",
     "start:api": "pnpm --filter @velora/api start",
     "start:web": "pnpm --filter @velora/web start",
+    "db:format": "pnpm --filter @velora/database prisma:format",
+    "db:validate": "pnpm --filter @velora/database prisma:validate",
+    "db:generate": "pnpm --filter @velora/database prisma:generate",
+    "db:migrate": "pnpm --filter @velora/database prisma:migrate",
     "lint": "pnpm -r --if-present run lint",
     "typecheck": "pnpm -r --if-present run typecheck"
   },

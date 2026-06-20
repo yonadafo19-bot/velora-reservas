@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum BusinessVertical {
+  BARBERSHOP
+  BEAUTY_STUDIO
+}
+
+enum BusinessStatus {
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+enum LocationStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  RECEPTIONIST
+  PROFESSIONAL
+}
+
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+enum LoyaltyTier {
+  STANDARD
+  PREFERRED
+  VIP
+}
+
+model Business {
+  id        String           @id @default(cuid())
+  slug      String           @unique @db.VarChar(100)
+  name      String           @db.VarChar(160)
+  vertical  BusinessVertical
+  timezone  String           @default("America/Santiago") @db.VarChar(64)
+  currency  String           @default("CLP") @db.VarChar(3)
+  status    BusinessStatus   @default(ACTIVE)
+  createdAt DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime         @updatedAt @db.Timestamptz(3)
+
+  locations   Location[]
+  memberships Membership[]
+  customers   Customer[]
+
+  @@index([status])
+}
+
+model Location {
+  id            String         @id @default(cuid())
+  businessId    String
+  slug          String         @db.VarChar(100)
+  name          String         @db.VarChar(160)
+  addressLine   String?        @db.VarChar(240)
+  city          String?        @db.VarChar(120)
+  region        String?        @db.VarChar(120)
+  timezone      String?        @db.VarChar(64)
+  phone         String?        @db.VarChar(32)
+  whatsappPhone String?        @db.VarChar(32)
+  status        LocationStatus @default(ACTIVE)
+  createdAt     DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime       @updatedAt @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+
+  @@unique([businessId, slug])
+  @@index([businessId, status])
+}
+
+model User {
+  id          String     @id @default(cuid())
+  authSubject String     @unique @db.VarChar(160)
+  email       String     @unique @db.VarChar(320)
+  displayName String?    @db.VarChar(160)
+  status      UserStatus @default(ACTIVE)
+  createdAt   DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime   @updatedAt @db.Timestamptz(3)
+
+  memberships Membership[]
+
+  @@index([status])
+}
+
+model Membership {
+  id         String           @id @default(cuid())
+  businessId String
+  userId     String
+  role       MembershipRole
+  status     MembershipStatus @default(ACTIVE)
+  createdAt  DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime         @updatedAt @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([businessId, userId])
+  @@index([businessId, role, status])
+  @@index([userId, status])
+}
+
+model Customer {
+  id               String      @id @default(cuid())
+  businessId       String
+  firstName        String      @db.VarChar(120)
+  lastName         String?     @db.VarChar(120)
+  phone            String      @db.VarChar(32)
+  email            String?     @db.VarChar(320)
+  loyaltyTier      LoyaltyTier @default(STANDARD)
+  priorityScore    Int         @default(0)
+  isManualVip      Boolean     @default(false)
+  preferencesNotes String?     @db.Text
+  internalNotes    String?     @db.Text
+  firstVisitAt     DateTime?   @db.Timestamptz(3)
+  lastVisitAt      DateTime?   @db.Timestamptz(3)
+  createdAt        DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime    @updatedAt @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+
+  @@index([businessId, phone])
+  @@index([businessId, email])
+  @@index([businessId, loyaltyTier])
+}

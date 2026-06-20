@@ -3,11 +3,35 @@ export enum BusinessVertical {
   BEAUTY_STUDIO = "BEAUTY_STUDIO",
 }
 
+export enum BusinessStatus {
+  ACTIVE = "ACTIVE",
+  SUSPENDED = "SUSPENDED",
+  INACTIVE = "INACTIVE",
+}
+
+export enum LocationStatus {
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
+}
+
+export enum UserStatus {
+  ACTIVE = "ACTIVE",
+  SUSPENDED = "SUSPENDED",
+  INACTIVE = "INACTIVE",
+}
+
 export enum MembershipRole {
   OWNER = "OWNER",
   ADMIN = "ADMIN",
   RECEPTIONIST = "RECEPTIONIST",
   PROFESSIONAL = "PROFESSIONAL",
+}
+
+export enum MembershipStatus {
+  INVITED = "INVITED",
+  ACTIVE = "ACTIVE",
+  SUSPENDED = "SUSPENDED",
+  INACTIVE = "INACTIVE",
 }
 
 export enum AppointmentStatus {

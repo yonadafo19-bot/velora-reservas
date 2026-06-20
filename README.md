@@ -10,6 +10,7 @@ La fase actual conserva la demo visual premium y mobile-first para barberías y 
 - `apps/api`: API NestJS versionada y fundamentos HTTP compartidos.
 - `packages/types`: enums y contratos compartidos sin dependencias de framework.
 - `packages/domain`: validaciones y reglas puras de dominio.
+- `packages/database`: schema, migraciones y cliente generado de Prisma para PostgreSQL.
 
 Los paquetes de dominio no dependen de React, Next.js, NestJS ni Prisma.
 
@@ -66,5 +67,21 @@ corepack pnpm --filter @velora/api lint
 corepack pnpm --filter @velora/api typecheck
 corepack pnpm --filter @velora/api build
 ```
+
+## Base de datos
+
+La configuración de Prisma vive en `packages/database`. Copiar su `.env.example`
+a `.env` y reemplazar la URL local antes de ejecutar migraciones.
+
+```bash
+corepack pnpm db:format
+corepack pnpm db:validate
+corepack pnpm db:generate
+corepack pnpm db:migrate
+```
+
+La migración inicial incluida puede aplicarse sobre una base PostgreSQL vacía.
+El paquete no crea una instancia global de `PrismaClient` y no está expuesto a
+`apps/web`.
 
 La Fase 1 web funciona con datos locales ficticios. La API solo expone health checks y fundamentos HTTP; todavía no incluye endpoints de negocio, Prisma, PostgreSQL, autenticación, pagos, correos ni integraciones externas.
