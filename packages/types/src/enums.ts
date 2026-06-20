@@ -111,6 +111,57 @@ export enum PolicyStatus {
   ARCHIVED = "ARCHIVED",
 }
 
+export enum ProductStatus {
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
+  ARCHIVED = "ARCHIVED",
+}
+
+export enum ProductRecommendationStatus {
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
+  ARCHIVED = "ARCHIVED",
+}
+
+export enum ProductInquiryChannel {
+  PUBLIC_WEB = "PUBLIC_WEB",
+  ADMIN = "ADMIN",
+  WHATSAPP = "WHATSAPP",
+  SYSTEM = "SYSTEM",
+}
+
+export enum ProductInquiryStatus {
+  OPEN = "OPEN",
+  CONTACTED = "CONTACTED",
+  CLOSED = "CLOSED",
+  CANCELLED = "CANCELLED",
+}
+
+export enum RetailOrderStatus {
+  DRAFT = "DRAFT",
+  CONFIRMED = "CONFIRMED",
+  CANCELLED = "CANCELLED",
+}
+
+export enum RetailOrderSource {
+  ADMIN = "ADMIN",
+  APPOINTMENT = "APPOINTMENT",
+  WHATSAPP = "WHATSAPP",
+  SYSTEM = "SYSTEM",
+}
+
+export enum ResourceStatus {
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
+  ARCHIVED = "ARCHIVED",
+}
+
+export enum ResourceTypeStatus {
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
+  ARCHIVED = "ARCHIVED",
+}
+
 export enum LoyaltyTier {
   STANDARD = "STANDARD",
   PREFERRED = "PREFERRED",

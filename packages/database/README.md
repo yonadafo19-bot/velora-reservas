@@ -48,3 +48,15 @@ Las políticas de seña son configuración y no representan pagos. La migración
 exige monto fijo o porcentaje, nunca ambos, y limita porcentajes a 0-10000 puntos
 base. Las reglas no-show solo almacenan ventana y seguimiento; no cobran ni
 aplican sanciones automáticas.
+
+## Retail y recursos
+
+`Product` y `Service` son entidades separadas: los productos no tienen duración,
+profesional ni bloques de agenda. El inventario se registra por location y aplica
+la invariante `0 <= reserved <= onHand`; productos sin tracking no necesitan
+filas operativas de inventario.
+
+Las órdenes retail solo preparan venta asistida con snapshots. No implementan
+checkout, pagos, boleta ni facturación. Los tipos, recursos y requisitos por
+servicio preparan disponibilidad futura, pero no reservan recursos ni se conectan
+a `AppointmentSegment` en esta fase.

@@ -158,6 +158,57 @@ enum PolicyStatus {
   ARCHIVED
 }
 
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ProductRecommendationStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ProductInquiryChannel {
+  PUBLIC_WEB
+  ADMIN
+  WHATSAPP
+  SYSTEM
+}
+
+enum ProductInquiryStatus {
+  OPEN
+  CONTACTED
+  CLOSED
+  CANCELLED
+}
+
+enum RetailOrderStatus {
+  DRAFT
+  CONFIRMED
+  CANCELLED
+}
+
+enum RetailOrderSource {
+  ADMIN
+  APPOINTMENT
+  WHATSAPP
+  SYSTEM
+}
+
+enum ResourceStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ResourceTypeStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
 model Business {
   id                    String           @id @default(cuid())
   slug                  String           @unique @db.VarChar(100)
@@ -194,6 +245,16 @@ model Business {
   depositPolicies               DepositPolicy[]
   noShowPolicies                NoShowPolicy[]                 @relation("BusinessNoShowPolicies")
   defaultNoShowPolicy           NoShowPolicy?                  @relation("BusinessDefaultNoShowPolicy", fields: [id, defaultNoShowPolicyId], references: [businessId, id], onDelete: Restrict)
+  productCategories             ProductCategory[]
+  products                      Product[]
+  productInventories            ProductInventory[]
+  productRecommendations        ProductRecommendation[]
+  productInquiries              ProductInquiry[]
+  retailOrders                  RetailOrder[]
+  retailOrderItems              RetailOrderItem[]
+  resourceTypes                 ResourceType[]
+  resources                     Resource[]
+  serviceResourceRequirements   ServiceResourceRequirement[]
 
   @@index([status])
 }
@@ -223,6 +284,10 @@ model Location {
   appointmentSegments           AppointmentSegment[]
   waitlistEntries               WaitlistEntry[]
   releasedSlots                 ReleasedSlot[]
+  productInventories            ProductInventory[]
+  productInquiries              ProductInquiry[]
+  retailOrders                  RetailOrder[]
+  resources                     Resource[]
 
   @@unique([businessId, slug])
   @@unique([businessId, id])
@@ -279,8 +344,10 @@ model Customer {
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
 
-  appointments    Appointment[]
-  waitlistEntries WaitlistEntry[]
+  appointments     Appointment[]
+  waitlistEntries  WaitlistEntry[]
+  productInquiries ProductInquiry[]
+  retailOrders     RetailOrder[]
 
   @@unique([businessId, id])
   @@index([businessId, phone])
@@ -325,15 +392,18 @@ model Service {
   updatedAt           DateTime      @updatedAt @db.Timestamptz(3)
   depositPolicyId     String?
 
-  business             Business              @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  category             ServiceCategory?      @relation(fields: [businessId, categoryId], references: [businessId, id], onDelete: Restrict)
-  baseServiceAddons    ServiceAddon[]        @relation("BaseServiceAddons")
-  addonServiceAddons   ServiceAddon[]        @relation("AddonServiceAddons")
-  professionalServices ProfessionalService[]
-  packItems            PackItem[]
-  appointmentServices  AppointmentService[]
-  waitlistServices     WaitlistService[]
-  depositPolicy        DepositPolicy?        @relation(fields: [businessId, depositPolicyId], references: [businessId, id], onDelete: Restrict)
+  business               Business                     @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  category               ServiceCategory?             @relation(fields: [businessId, categoryId], references: [businessId, id], onDelete: Restrict)
+  baseServiceAddons      ServiceAddon[]               @relation("BaseServiceAddons")
+  addonServiceAddons     ServiceAddon[]               @relation("AddonServiceAddons")
+  professionalServices   ProfessionalService[]
+  packItems              PackItem[]
+  appointmentServices    AppointmentService[]
+  waitlistServices       WaitlistService[]
+  depositPolicy          DepositPolicy?               @relation(fields: [businessId, depositPolicyId], references: [businessId, id], onDelete: Restrict)
+  productRecommendations ProductRecommendation[]
+  productInquiries       ProductInquiry[]
+  resourceRequirements   ServiceResourceRequirement[]
 
   @@unique([businessId, slug])
   @@unique([businessId, id])
@@ -564,6 +634,8 @@ model Appointment {
   segments                 AppointmentSegment[]
   convertedWaitlistEntries WaitlistEntry[]
   releasedSlots            ReleasedSlot[]
+  productInquiries         ProductInquiry[]
+  retailOrders             RetailOrder[]
 
   @@unique([businessId, bookingRequestId])
   @@unique([businessId, id])
@@ -773,4 +845,228 @@ model NoShowPolicy {
 
   @@unique([businessId, id])
   @@index([businessId, status])
+}
+
+model ProductCategory {
+  id          String        @id @default(cuid())
+  businessId  String
+  name        String        @db.VarChar(160)
+  slug        String        @db.VarChar(100)
+  description String?       @db.Text
+  sortOrder   Int           @default(0)
+  status      ProductStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime      @updatedAt @db.Timestamptz(3)
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  products Product[]
+
+  @@unique([businessId, slug])
+  @@unique([businessId, id])
+  @@index([businessId, status, sortOrder])
+}
+
+model Product {
+  id              String        @id @default(cuid())
+  businessId      String
+  categoryId      String?
+  sku             String?       @db.VarChar(100)
+  name            String        @db.VarChar(160)
+  slug            String        @db.VarChar(100)
+  description     String?       @db.Text
+  priceClp        Int
+  imageUrl        String?       @db.VarChar(2048)
+  tracksInventory Boolean       @default(true)
+  status          ProductStatus @default(ACTIVE)
+  sortOrder       Int           @default(0)
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @db.Timestamptz(3)
+
+  business         Business                @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  category         ProductCategory?        @relation(fields: [businessId, categoryId], references: [businessId, id], onDelete: Restrict)
+  inventories      ProductInventory[]
+  recommendations  ProductRecommendation[]
+  inquiries        ProductInquiry[]
+  retailOrderItems RetailOrderItem[]
+
+  @@unique([businessId, slug])
+  @@unique([businessId, sku])
+  @@unique([businessId, id])
+  @@index([businessId, categoryId, status, sortOrder])
+}
+
+model ProductInventory {
+  id           String   @id @default(cuid())
+  businessId   String
+  productId    String
+  locationId   String
+  onHand       Int      @default(0)
+  reserved     Int      @default(0)
+  reorderPoint Int      @default(0)
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  product  Product  @relation(fields: [businessId, productId], references: [businessId, id], onDelete: Restrict)
+  location Location @relation(fields: [businessId, locationId], references: [businessId, id], onDelete: Restrict)
+
+  @@unique([businessId, productId, locationId])
+  @@index([businessId, locationId, productId])
+  @@index([businessId, locationId, reorderPoint])
+}
+
+model ProductRecommendation {
+  id         String                      @id @default(cuid())
+  businessId String
+  serviceId  String
+  productId  String
+  priority   Int                         @default(0)
+  message    String?                     @db.VarChar(500)
+  status     ProductRecommendationStatus @default(ACTIVE)
+  createdAt  DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime                    @updatedAt @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  service  Service  @relation(fields: [businessId, serviceId], references: [businessId, id], onDelete: Restrict)
+  product  Product  @relation(fields: [businessId, productId], references: [businessId, id], onDelete: Restrict)
+
+  @@unique([businessId, serviceId, productId])
+  @@index([businessId, serviceId, status, priority])
+  @@index([businessId, productId, status])
+}
+
+model ProductInquiry {
+  id                    String                @id @default(cuid())
+  businessId            String
+  locationId            String?
+  productId             String
+  serviceId             String?
+  appointmentId         String?
+  customerId            String?
+  channel               ProductInquiryChannel
+  customerNameSnapshot  String?               @db.VarChar(160)
+  customerPhoneSnapshot String?               @db.VarChar(32)
+  message               String?               @db.Text
+  status                ProductInquiryStatus  @default(OPEN)
+  createdAt             DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime              @updatedAt @db.Timestamptz(3)
+
+  business    Business     @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  location    Location?    @relation(fields: [businessId, locationId], references: [businessId, id], onDelete: Restrict)
+  product     Product      @relation(fields: [businessId, productId], references: [businessId, id], onDelete: Restrict)
+  service     Service?     @relation(fields: [businessId, serviceId], references: [businessId, id], onDelete: Restrict)
+  appointment Appointment? @relation(fields: [businessId, appointmentId], references: [businessId, id], onDelete: Restrict)
+  customer    Customer?    @relation(fields: [businessId, customerId], references: [businessId, id], onDelete: Restrict)
+
+  @@index([businessId, productId, status, createdAt])
+  @@index([businessId, locationId, status, createdAt])
+  @@index([businessId, appointmentId])
+  @@index([businessId, customerId, createdAt])
+}
+
+model RetailOrder {
+  id                    String            @id @default(cuid())
+  businessId            String
+  locationId            String
+  customerId            String?
+  appointmentId         String?
+  status                RetailOrderStatus @default(DRAFT)
+  source                RetailOrderSource
+  totalClp              Int               @default(0)
+  currencySnapshot      String            @default("CLP") @db.VarChar(3)
+  customerNameSnapshot  String?           @db.VarChar(160)
+  customerPhoneSnapshot String?           @db.VarChar(32)
+  notes                 String?           @db.Text
+  createdAt             DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime          @updatedAt @db.Timestamptz(3)
+
+  business    Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  location    Location          @relation(fields: [businessId, locationId], references: [businessId, id], onDelete: Restrict)
+  customer    Customer?         @relation(fields: [businessId, customerId], references: [businessId, id], onDelete: Restrict)
+  appointment Appointment?      @relation(fields: [businessId, appointmentId], references: [businessId, id], onDelete: Restrict)
+  items       RetailOrderItem[]
+
+  @@unique([businessId, id])
+  @@index([businessId, locationId, status, createdAt])
+  @@index([businessId, customerId, createdAt])
+  @@index([businessId, appointmentId])
+}
+
+model RetailOrderItem {
+  id                   String   @id @default(cuid())
+  businessId           String
+  retailOrderId        String
+  productId            String?
+  sequence             Int
+  productNameSnapshot  String   @db.VarChar(160)
+  productSkuSnapshot   String?  @db.VarChar(100)
+  unitPriceClpSnapshot Int
+  quantity             Int
+  totalClpSnapshot     Int
+  createdAt            DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime @updatedAt @db.Timestamptz(3)
+
+  business    Business    @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  retailOrder RetailOrder @relation(fields: [businessId, retailOrderId], references: [businessId, id], onDelete: Restrict)
+  product     Product?    @relation(fields: [businessId, productId], references: [businessId, id], onDelete: Restrict)
+
+  @@unique([businessId, retailOrderId, sequence])
+  @@index([businessId, productId])
+}
+
+model ResourceType {
+  id          String             @id @default(cuid())
+  businessId  String
+  name        String             @db.VarChar(160)
+  slug        String             @db.VarChar(100)
+  description String?            @db.Text
+  status      ResourceTypeStatus @default(ACTIVE)
+  createdAt   DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime           @updatedAt @db.Timestamptz(3)
+
+  business     Business                     @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  resources    Resource[]
+  requirements ServiceResourceRequirement[]
+
+  @@unique([businessId, slug])
+  @@unique([businessId, id])
+  @@index([businessId, status])
+}
+
+model Resource {
+  id             String         @id @default(cuid())
+  businessId     String
+  locationId     String
+  resourceTypeId String
+  name           String         @db.VarChar(160)
+  slug           String         @db.VarChar(100)
+  capacity       Int            @default(1)
+  status         ResourceStatus @default(ACTIVE)
+  createdAt      DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime       @updatedAt @db.Timestamptz(3)
+
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  location     Location     @relation(fields: [businessId, locationId], references: [businessId, id], onDelete: Restrict)
+  resourceType ResourceType @relation(fields: [businessId, resourceTypeId], references: [businessId, id], onDelete: Restrict)
+
+  @@unique([businessId, locationId, slug])
+  @@index([businessId, locationId, status])
+  @@index([businessId, resourceTypeId, status])
+}
+
+model ServiceResourceRequirement {
+  id             String   @id @default(cuid())
+  businessId     String
+  serviceId      String
+  resourceTypeId String
+  quantity       Int      @default(1)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  service      Service      @relation(fields: [businessId, serviceId], references: [businessId, id], onDelete: Restrict)
+  resourceType ResourceType @relation(fields: [businessId, resourceTypeId], references: [businessId, id], onDelete: Restrict)
+
+  @@unique([businessId, serviceId, resourceTypeId])
+  @@index([businessId, resourceTypeId])
 }
