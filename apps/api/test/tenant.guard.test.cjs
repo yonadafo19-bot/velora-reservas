@@ -64,6 +64,8 @@ test("deriva el tenant solo desde la membresía autenticada", () => {
     set: (tenant) => { storedTenant = tenant; },
   });
   const request = requestWithMembership();
+  request.body = { businessId: "business-desde-body" };
+  request.query = { businessId: "business-desde-query" };
 
   assert.equal(guard.canActivate(executionContext(request)), true);
   assert.equal(request.tenant.businessId, "business-1");

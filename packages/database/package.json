@@ -21,6 +21,7 @@
     "build": "prisma generate && tsc -p tsconfig.json",
     "lint": "eslint src prisma.config.ts",
     "typecheck": "prisma generate && tsc -p tsconfig.json --noEmit",
+    "test": "pnpm build && node --test test/migrations.test.mjs test/seeds.test.mjs",
     "db:seed": "pnpm build && node dist/seed.js",
     "prisma:format": "prisma format --schema prisma/schema.prisma",
     "prisma:validate": "prisma validate --schema prisma/schema.prisma",

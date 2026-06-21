@@ -57,6 +57,10 @@ Prisma no representa extensiones ni constraints de exclusión. Las migraciones
 futuras deben preservar esta protección, y el rol que aplica migraciones necesita
 permiso para instalar `btree_gist` si la extensión no existe.
 
+Las pruebas de Gate 0 verifican estáticamente esta constraint. La prueba real de
+dos reservas concurrentes queda pendiente para una instancia PostgreSQL vacía y
+aprobada.
+
 ## Lista de espera y políticas
 
 La intención de lista de espera conserva preferencias, contacto y snapshots de
@@ -91,3 +95,6 @@ persistirlos. Nunca deben contener secretos, tokens, passwords, credenciales ni
 PII innecesaria. `ipAddress` y `userAgent` son opcionales y tienen longitud
 limitada. Cada movimiento conserva estados anterior y siguiente de stock y
 reserva, además de una clave de idempotencia opcional por tenant.
+
+Las pruebas estáticas verifican checks e idempotencia del inventario. El bloqueo
+transaccional de stock queda pendiente para el servicio real de inventario.
