@@ -49,8 +49,19 @@ Health checks disponibles:
 ```bash
 corepack pnpm lint
 corepack pnpm typecheck
+corepack pnpm test
 corepack pnpm build
 ```
+
+El gate completo local y de CI incluye formato y validación Prisma, generación
+del cliente, lint, typecheck, pruebas y build:
+
+```bash
+corepack pnpm run ci
+```
+
+Se usa `pnpm run ci` de forma explícita porque `pnpm ci` es un comando propio de
+pnpm para realizar una instalación limpia y no ejecuta el script del workspace.
 
 Los mismos gates pueden ejecutarse directamente sobre la aplicación web:
 
