@@ -13,6 +13,7 @@ import {
   type UpdateAppointmentStatusRequest,
 } from "./business-appointment-status.service";
 import { BusinessAppointmentsService } from "./business-appointments.service";
+import { BusinessCalendarDashboardService } from "./business-calendar-dashboard.service";
 import { BusinessCustomersService } from "./business-customers.service";
 import { BusinessOverviewService } from "./business-overview.service";
 import { BusinessProfessionalAvailabilityService } from "./business-professional-availability.service";
@@ -31,6 +32,7 @@ export class BusinessesController {
     private readonly businessAppointmentDetail: BusinessAppointmentDetailService,
     private readonly businessAppointmentCreate: BusinessAppointmentCreateService,
     private readonly businessAppointmentStatus: BusinessAppointmentStatusService,
+    private readonly businessCalendarDashboard: BusinessCalendarDashboardService,
   ) {}
 
   @Get(":businessSlug/overview")
@@ -102,5 +104,24 @@ export class BusinessesController {
     @Body() body: UpdateAppointmentStatusRequest,
   ) {
     return this.businessAppointmentStatus.updateStatus(tenant, appointmentId, body);
+  }
+
+  @Get(":businessSlug/dashboard/calendar")
+  @RequireTenant()
+  dashboardCalendar(
+    @CurrentTenant() tenant: TenantContext,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+    @Query("locationId") locationId?: string,
+    @Query("professionalId") professionalId?: string,
+    @Query("status") status?: string,
+  ) {
+    return this.businessCalendarDashboard.getCalendar(tenant, {
+      from,
+      to,
+      locationId,
+      professionalId,
+      status,
+    });
   }
 }

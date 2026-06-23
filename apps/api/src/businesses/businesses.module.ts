@@ -7,6 +7,7 @@ import { BusinessAppointmentCreateService } from "./business-appointment-create.
 import { BusinessAppointmentDetailService } from "./business-appointment-detail.service";
 import { BusinessAppointmentStatusService } from "./business-appointment-status.service";
 import { BusinessAppointmentsService } from "./business-appointments.service";
+import { BusinessCalendarDashboardService } from "./business-calendar-dashboard.service";
 import { BusinessCustomersService } from "./business-customers.service";
 import { BusinessOverviewService } from "./business-overview.service";
 import { BusinessProfessionalAvailabilityService } from "./business-professional-availability.service";
@@ -27,6 +28,7 @@ import { BusinessesController } from "./businesses.controller";
     BusinessAppointmentDetailService,
     BusinessAppointmentCreateService,
     BusinessAppointmentStatusService,
+    BusinessCalendarDashboardService,
     TenantGuard,
   ],
 })
