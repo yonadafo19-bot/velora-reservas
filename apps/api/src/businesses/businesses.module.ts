@@ -4,6 +4,7 @@ import { DatabaseModule } from "../common/database/database.module";
 import { TenantGuard } from "../tenancy/tenant.guard";
 import { TenancyModule } from "../tenancy/tenancy.module";
 import { BusinessOverviewService } from "./business-overview.service";
+import { BusinessProfessionalAvailabilityService } from "./business-professional-availability.service";
 import { BusinessProfessionalsService } from "./business-professionals.service";
 import { BusinessServicesService } from "./business-services.service";
 import { BusinessesController } from "./businesses.controller";
@@ -15,6 +16,7 @@ import { BusinessesController } from "./businesses.controller";
     BusinessOverviewService,
     BusinessServicesService,
     BusinessProfessionalsService,
+    BusinessProfessionalAvailabilityService,
     TenantGuard,
   ],
 })
