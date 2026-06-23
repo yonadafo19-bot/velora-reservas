@@ -34,6 +34,11 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !**/.env.example
+.env.local
+.env.*.local
+scripts/local/.env.local
+scripts/local/*.secret.ps1
+!scripts/local/.env.local.example
 
 # vercel
 **/.vercel/
