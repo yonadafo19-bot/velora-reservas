@@ -3,6 +3,7 @@ import { Controller, Get, Param } from "@nestjs/common";
 import type { TenantContext } from "../common/types/request-user";
 import { CurrentTenant } from "../tenancy/current-tenant.decorator";
 import { RequireTenant } from "../tenancy/require-tenant.decorator";
+import { BusinessCustomersService } from "./business-customers.service";
 import { BusinessOverviewService } from "./business-overview.service";
 import { BusinessProfessionalAvailabilityService } from "./business-professional-availability.service";
 import { BusinessProfessionalsService } from "./business-professionals.service";
@@ -15,6 +16,7 @@ export class BusinessesController {
     private readonly businessServices: BusinessServicesService,
     private readonly businessProfessionals: BusinessProfessionalsService,
     private readonly businessProfessionalAvailability: BusinessProfessionalAvailabilityService,
+    private readonly businessCustomers: BusinessCustomersService,
   ) {}
 
   @Get(":businessSlug/overview")
@@ -42,5 +44,11 @@ export class BusinessesController {
     @Param("professionalId") professionalId: string,
   ) {
     return this.businessProfessionalAvailability.getAvailability(tenant, professionalId);
+  }
+
+  @Get(":businessSlug/customers")
+  @RequireTenant()
+  customers(@CurrentTenant() tenant: TenantContext) {
+    return this.businessCustomers.listCustomers(tenant);
   }
 }
