@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Query } from "@nestjs/common";
 
 import type { TenantContext } from "../common/types/request-user";
 import { CurrentTenant } from "../tenancy/current-tenant.decorator";
@@ -8,6 +8,10 @@ import {
   type CreateAppointmentRequest,
 } from "./business-appointment-create.service";
 import { BusinessAppointmentDetailService } from "./business-appointment-detail.service";
+import {
+  BusinessAppointmentStatusService,
+  type UpdateAppointmentStatusRequest,
+} from "./business-appointment-status.service";
 import { BusinessAppointmentsService } from "./business-appointments.service";
 import { BusinessCustomersService } from "./business-customers.service";
 import { BusinessOverviewService } from "./business-overview.service";
@@ -26,6 +30,7 @@ export class BusinessesController {
     private readonly businessAppointments: BusinessAppointmentsService,
     private readonly businessAppointmentDetail: BusinessAppointmentDetailService,
     private readonly businessAppointmentCreate: BusinessAppointmentCreateService,
+    private readonly businessAppointmentStatus: BusinessAppointmentStatusService,
   ) {}
 
   @Get(":businessSlug/overview")
@@ -87,5 +92,15 @@ export class BusinessesController {
     @Body() body: CreateAppointmentRequest,
   ) {
     return this.businessAppointmentCreate.createAppointment(tenant, body);
+  }
+
+  @Patch(":businessSlug/appointments/:appointmentId/status")
+  @RequireTenant()
+  updateAppointmentStatus(
+    @CurrentTenant() tenant: TenantContext,
+    @Param("appointmentId") appointmentId: string,
+    @Body() body: UpdateAppointmentStatusRequest,
+  ) {
+    return this.businessAppointmentStatus.updateStatus(tenant, appointmentId, body);
   }
 }
