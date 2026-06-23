@@ -3,6 +3,7 @@
 import { DatabaseModule } from "../common/database/database.module";
 import { TenantGuard } from "../tenancy/tenant.guard";
 import { TenancyModule } from "../tenancy/tenancy.module";
+import { BusinessAppointmentsService } from "./business-appointments.service";
 import { BusinessCustomersService } from "./business-customers.service";
 import { BusinessOverviewService } from "./business-overview.service";
 import { BusinessProfessionalAvailabilityService } from "./business-professional-availability.service";
@@ -19,6 +20,7 @@ import { BusinessesController } from "./businesses.controller";
     BusinessProfessionalsService,
     BusinessProfessionalAvailabilityService,
     BusinessCustomersService,
+    BusinessAppointmentsService,
     TenantGuard,
   ],
 })

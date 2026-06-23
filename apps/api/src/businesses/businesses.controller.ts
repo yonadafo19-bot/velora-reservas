@@ -1,8 +1,9 @@
-import { Controller, Get, Param } from "@nestjs/common";
+import { Controller, Get, Param, Query } from "@nestjs/common";
 
 import type { TenantContext } from "../common/types/request-user";
 import { CurrentTenant } from "../tenancy/current-tenant.decorator";
 import { RequireTenant } from "../tenancy/require-tenant.decorator";
+import { BusinessAppointmentsService } from "./business-appointments.service";
 import { BusinessCustomersService } from "./business-customers.service";
 import { BusinessOverviewService } from "./business-overview.service";
 import { BusinessProfessionalAvailabilityService } from "./business-professional-availability.service";
@@ -17,6 +18,7 @@ export class BusinessesController {
     private readonly businessProfessionals: BusinessProfessionalsService,
     private readonly businessProfessionalAvailability: BusinessProfessionalAvailabilityService,
     private readonly businessCustomers: BusinessCustomersService,
+    private readonly businessAppointments: BusinessAppointmentsService,
   ) {}
 
   @Get(":businessSlug/overview")
@@ -50,5 +52,15 @@ export class BusinessesController {
   @RequireTenant()
   customers(@CurrentTenant() tenant: TenantContext) {
     return this.businessCustomers.listCustomers(tenant);
+  }
+
+  @Get(":businessSlug/appointments")
+  @RequireTenant()
+  appointments(
+    @CurrentTenant() tenant: TenantContext,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    return this.businessAppointments.listAppointments(tenant, { from, to });
   }
 }
