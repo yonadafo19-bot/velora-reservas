@@ -3,6 +3,7 @@
 import { DatabaseModule } from "../common/database/database.module";
 import { TenantGuard } from "../tenancy/tenant.guard";
 import { TenancyModule } from "../tenancy/tenancy.module";
+import { BusinessAppointmentCreateService } from "./business-appointment-create.service";
 import { BusinessAppointmentDetailService } from "./business-appointment-detail.service";
 import { BusinessAppointmentsService } from "./business-appointments.service";
 import { BusinessCustomersService } from "./business-customers.service";
@@ -23,6 +24,7 @@ import { BusinessesController } from "./businesses.controller";
     BusinessCustomersService,
     BusinessAppointmentsService,
     BusinessAppointmentDetailService,
+    BusinessAppointmentCreateService,
     TenantGuard,
   ],
 })

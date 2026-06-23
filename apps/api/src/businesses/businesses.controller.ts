@@ -1,8 +1,12 @@
-import { Controller, Get, Param, Query } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
 
 import type { TenantContext } from "../common/types/request-user";
 import { CurrentTenant } from "../tenancy/current-tenant.decorator";
 import { RequireTenant } from "../tenancy/require-tenant.decorator";
+import {
+  BusinessAppointmentCreateService,
+  type CreateAppointmentRequest,
+} from "./business-appointment-create.service";
 import { BusinessAppointmentDetailService } from "./business-appointment-detail.service";
 import { BusinessAppointmentsService } from "./business-appointments.service";
 import { BusinessCustomersService } from "./business-customers.service";
@@ -21,6 +25,7 @@ export class BusinessesController {
     private readonly businessCustomers: BusinessCustomersService,
     private readonly businessAppointments: BusinessAppointmentsService,
     private readonly businessAppointmentDetail: BusinessAppointmentDetailService,
+    private readonly businessAppointmentCreate: BusinessAppointmentCreateService,
   ) {}
 
   @Get(":businessSlug/overview")
@@ -73,5 +78,14 @@ export class BusinessesController {
     @Param("appointmentId") appointmentId: string,
   ) {
     return this.businessAppointmentDetail.getAppointment(tenant, appointmentId);
+  }
+
+  @Post(":businessSlug/appointments")
+  @RequireTenant()
+  createAppointment(
+    @CurrentTenant() tenant: TenantContext,
+    @Body() body: CreateAppointmentRequest,
+  ) {
+    return this.businessAppointmentCreate.createAppointment(tenant, body);
   }
 }
