@@ -8,7 +8,7 @@
     "start": "node dist/main.js",
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm build && node --test test/tenant.guard.test.cjs test/infrastructure.test.cjs test/api-smoke.test.cjs test/business-overview.test.cjs test/business-services.test.cjs test/business-professionals.test.cjs test/business-professional-availability.test.cjs"
+    "test": "pnpm build && node --test test/tenant.guard.test.cjs test/infrastructure.test.cjs test/api-smoke.test.cjs test/business-overview.test.cjs test/business-services.test.cjs test/business-professionals.test.cjs test/business-professional-availability.test.cjs test/business-customers.test.cjs"
   },
   "dependencies": {
     "@nestjs/common": "11.1.27",
