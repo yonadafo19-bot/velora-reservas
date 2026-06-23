@@ -74,4 +74,5 @@ export type AdminCalendarLoadState =
       status: "error";
       message: string;
       httpStatus?: number;
+      debugBlock?: "calendar";
     };

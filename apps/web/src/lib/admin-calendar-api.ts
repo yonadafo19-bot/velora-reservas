@@ -10,6 +10,13 @@ const businessSlugByVertical: Record<BusinessVertical, string> = {
   belleza: "velora-beauty-studio-demo",
 };
 
+class AdminCalendarLoadError extends Error {
+  constructor(message: string, readonly status?: number) {
+    super(message);
+    this.name = "AdminCalendarLoadError";
+  }
+}
+
 export async function getAdminCalendar(
   vertical: BusinessVertical,
 ): Promise<AdminCalendarLoadState> {
@@ -24,9 +31,9 @@ export async function getAdminCalendar(
   }
 
   const { from, to } = getDefaultCalendarRange();
-  const endpoint = buildCalendarUrl(apiUrl, businessSlugByVertical[vertical], from, to);
 
   try {
+    const endpoint = buildCalendarUrl(apiUrl, businessSlugByVertical[vertical], from, to);
     const response = await fetch(endpoint, {
       cache: "no-store",
       headers: {
@@ -36,20 +43,36 @@ export async function getAdminCalendar(
     });
 
     if (!response.ok) {
+      logAdminCalendarLoadError(new AdminCalendarLoadError(
+        `Admin calendar API request failed with status ${response.status}.`,
+        response.status,
+      ));
+
       return {
         status: "error",
         httpStatus: response.status,
+        debugBlock: "calendar",
         message: "No pudimos cargar la agenda. Intenta nuevamente.",
       };
     }
 
+    let data: AdminCalendarResponse;
+    try {
+      data = await response.json() as AdminCalendarResponse;
+    } catch {
+      throw new AdminCalendarLoadError("Admin calendar API returned invalid JSON.");
+    }
+
     return {
       status: "ready",
-      data: await response.json() as AdminCalendarResponse,
+      data,
     };
-  } catch {
+  } catch (error) {
+    logAdminCalendarLoadError(error);
+
     return {
       status: "error",
+      debugBlock: "calendar",
       message: "No pudimos cargar la agenda. Intenta nuevamente.",
     };
   }
@@ -153,4 +176,17 @@ function partsToRecord<T extends string>(
       parts.find((part) => part.type === name)?.value ?? "00",
     ]),
   ) as Record<T, string>;
+}
+
+function logAdminCalendarLoadError(error: unknown) {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+
+  const message = error instanceof Error ? error.message : "Error desconocido.";
+  const status = error instanceof AdminCalendarLoadError && error.status
+    ? ` status=${error.status}`
+    : "";
+
+  console.error(`[admin/citas] Fallo controlado en calendar:${status} ${message}`);
 }
