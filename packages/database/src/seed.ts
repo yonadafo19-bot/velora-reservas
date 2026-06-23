@@ -8,6 +8,7 @@ import { beautyStudioDemo } from "./seeds/beauty-studio.demo.js";
 import { seedDemoBusiness } from "./seeds/seed-demo.js";
 
 const REQUIRED_CONFIRMATION = "SEED_VELORA_DEMOS";
+const SEED_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 30_000 } as const;
 
 async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL?.trim();
@@ -26,8 +27,14 @@ async function main(): Promise<void> {
   });
 
   try {
-    await prisma.$transaction((transaction) => seedDemoBusiness(transaction, barbershopDemo));
-    await prisma.$transaction((transaction) => seedDemoBusiness(transaction, beautyStudioDemo));
+    await prisma.$transaction(
+      (transaction) => seedDemoBusiness(transaction, barbershopDemo),
+      SEED_TRANSACTION_OPTIONS,
+    );
+    await prisma.$transaction(
+      (transaction) => seedDemoBusiness(transaction, beautyStudioDemo),
+      SEED_TRANSACTION_OPTIONS,
+    );
     console.info("Seeds demo de Barberías y Beauty Studios completados.");
   } finally {
     await prisma.$disconnect();
