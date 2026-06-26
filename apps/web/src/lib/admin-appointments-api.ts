@@ -14,6 +14,7 @@ import type { BusinessVertical } from "@/types/demo";
 const DEFAULT_TIME_ZONE = "America/Santiago";
 const PAST_DATE_MESSAGE = "No puedes crear una cita en una fecha pasada.";
 const FORM_LOAD_ERROR_MESSAGE = "No pudimos cargar los datos para crear una cita. Intenta nuevamente.";
+const FORM_AUTH_ERROR_MESSAGE = "No pudimos cargar los datos para crear una cita. Revisa la sesión de administrador.";
 const businessSlugByVertical: Record<BusinessVertical, string> = {
   barberia: "velora-barberia-demo",
   belleza: "velora-beauty-studio-demo",
@@ -132,7 +133,7 @@ export async function getAdminAppointmentFormData(
 
     return {
       status: "error",
-      message: FORM_LOAD_ERROR_MESSAGE,
+      message: isUnauthorizedFormLoadError(error) ? FORM_AUTH_ERROR_MESSAGE : FORM_LOAD_ERROR_MESSAGE,
       debugBlock: block,
     };
   }
@@ -345,7 +346,11 @@ function logAdminFormLoadError(block: AdminAppointmentFormLoadBlock, error: unkn
     ? ` status=${error.status}`
     : "";
 
-  console.error(`[admin/citas] Fallo controlado en ${block}:${status} ${message}`);
+  console.warn(`[admin/citas] Fallo controlado en ${block}:${status} ${message}`);
+}
+
+function isUnauthorizedFormLoadError(error: unknown) {
+  return error instanceof AdminFormLoadError && error.status === 401;
 }
 
 function getAdminApiConfig():

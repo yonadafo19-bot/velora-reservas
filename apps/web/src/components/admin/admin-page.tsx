@@ -102,7 +102,7 @@ function AdminCalendarPanel({ calendar }: { calendar?: AdminCalendarLoadState })
   }
 
   if (calendar.status === "missing-config") {
-    return <CalendarStateNotice title="Configuracion o sesion pendiente" message={calendar.message}/>;
+    return <CalendarStateNotice title="Configuración o sesión pendiente." message={calendar.message}/>;
   }
 
   if (calendar.status === "error") {

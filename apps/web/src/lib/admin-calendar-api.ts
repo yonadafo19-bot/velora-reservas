@@ -48,6 +48,13 @@ export async function getAdminCalendar(
         response.status,
       ));
 
+      if (response.status === 401) {
+        return {
+          status: "missing-config",
+          message: "No pudimos cargar la agenda real. Revisa la sesión de administrador.",
+        };
+      }
+
       return {
         status: "error",
         httpStatus: response.status,
@@ -188,5 +195,5 @@ function logAdminCalendarLoadError(error: unknown) {
     ? ` status=${error.status}`
     : "";
 
-  console.error(`[admin/citas] Fallo controlado en calendar:${status} ${message}`);
+  console.warn(`[admin/citas] Fallo controlado en calendar:${status} ${message}`);
 }
