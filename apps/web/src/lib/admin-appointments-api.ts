@@ -362,7 +362,7 @@ function getAdminApiConfig():
   if (!apiUrl || !token) {
     return {
       ok: false,
-      message: "Falta configurar VELORA_API_URL o VELORA_ADMIN_DEV_TOKEN.",
+      message: FORM_AUTH_ERROR_MESSAGE,
     };
   }
 

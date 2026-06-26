@@ -184,7 +184,7 @@ function AppointmentFormDialog({
             <div className="panel-heading" style={{ marginBottom: 10 }}>
               <div>
                 <h2 style={{ fontSize: 18 }}>Hora de inicio</h2>
-                <p>Horarios según atención del negocio y disponibilidad semanal del profesional.</p>
+                <p>Horarios según disponibilidad real del profesional, ubicación y día seleccionados.</p>
               </div>
             </div>
             {!formState.serviceId || !formState.professionalId || !formState.locationId
@@ -204,7 +204,7 @@ function AppointmentFormDialog({
           </span>
         </div>
         <div className="demo-notice" style={{ marginTop: 12 }}>
-          <span><strong>Alcance MVP</strong>Se valida horario de atención, no cupo exacto por traslapes. Por ahora este formulario crea una cita con un servicio. Próximo paso: agregar varios servicios o packs.</span>
+          <span><strong>Recomendación</strong>Te recomendamos llegar 5 minutos antes.</span>
         </div>
         {selectedProfessional && selectedService && !selectedProfessional.services.some((service) => service.id === selectedService.id)
           ? <Notice title="Servicio no compatible" message="El profesional seleccionado no realiza este servicio."/>

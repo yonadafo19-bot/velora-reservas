@@ -6,6 +6,14 @@ Ruta principal:
 /admin/citas?negocio=barberia
 ```
 
+Estado de este documento:
+
+```text
+SMOKE MANUAL: NO EJECUTADO
+Responsable sugerido: Yona
+Motivo: esta actualizacion solo deja instrucciones de prueba; no reemplaza la prueba manual con API y token reales.
+```
+
 ## Preparacion
 
 - Confirmar que la web corre localmente.
@@ -27,8 +35,8 @@ Ruta principal:
 Resultado:
 
 ```text
-PASS/FAIL:
-Notas:
+Estado: NO EJECUTADO
+Notas para Yona: probar con API local disponible y token valido. Confirmar que el pill superior diga AGENDA REAL, que no aparezcan textos demo en Citas y que la tabla muestre rango inicio-termino.
 ```
 
 ## Sin token
@@ -42,8 +50,8 @@ Notas:
 Resultado:
 
 ```text
-PASS/FAIL:
-Notas:
+Estado: NO EJECUTADO
+Notas para Yona: levantar la web sin token y confirmar estado limpio, sin overlay rojo ni nombres de variables de entorno visibles en la UI.
 ```
 
 ## Token vencido
@@ -57,8 +65,8 @@ Notas:
 Resultado:
 
 ```text
-PASS/FAIL:
-Notas:
+Estado: NO EJECUTADO
+Notas para Yona: usar token invalido o vencido y confirmar que el error 401 queda contenido como estado UI limpio.
 ```
 
 ## Agenda vacia
@@ -70,8 +78,8 @@ Notas:
 Resultado:
 
 ```text
-PASS/FAIL:
-Notas:
+Estado: NO EJECUTADO
+Notas para Yona: usar un rango sin citas reales y confirmar que no se muestra agenda demo como respaldo.
 ```
 
 ## Error API
@@ -85,8 +93,8 @@ Notas:
 Resultado:
 
 ```text
-PASS/FAIL:
-Notas:
+Estado: NO EJECUTADO
+Notas para Yona: apagar o desconectar la API y confirmar mensaje controlado en espanol Chile, sin overlay rojo esperado.
 ```
 
 ## Creacion simple
@@ -101,8 +109,8 @@ Notas:
 Resultado:
 
 ```text
-PASS/FAIL:
-Notas:
+Estado: NO EJECUTADO
+Notas para Yona: crear una cita simple de un servicio. Confirmar exito, refresco de agenda y aparicion de la cita real.
 ```
 
 ## Mobile basico
@@ -115,8 +123,8 @@ Notas:
 Resultado:
 
 ```text
-PASS/FAIL:
-Notas:
+Estado: NO EJECUTADO
+Notas para Yona: revisar en viewport movil que agenda, estados y boton Nueva cita no tengan solapamientos.
 ```
 
 ## Revision final
@@ -130,7 +138,6 @@ Notas:
 Resultado general:
 
 ```text
-PASS/FAIL:
-Riesgos residuales:
+Estado: NO EJECUTADO
+Riesgos residuales: depende de API local, token valido y datos reales disponibles para completar la prueba.
 ```
-
