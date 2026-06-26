@@ -1,6 +1,10 @@
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
+const { UnauthorizedException } = require("@nestjs/common");
 
+const { IS_PUBLIC_KEY, REQUIRE_AUTH_KEY } = require("../dist/auth/auth.constants.js");
+const { AuthGuard } = require("../dist/auth/auth.guard.js");
+const { AppConfig } = require("../dist/common/config/app-config.js");
 const { TenantGuard } = require("../dist/tenancy/tenant.guard.js");
 
 function executionContext(request) {
@@ -70,4 +74,112 @@ test("deriva el tenant solo desde la membresía autenticada", () => {
   assert.equal(guard.canActivate(executionContext(request)), true);
   assert.equal(request.tenant.businessId, "business-1");
   assert.deepEqual(storedTenant, request.tenant);
+});
+
+test("auth guard inyecta usuario dev cuando AUTH_REQUIRED=false aunque la ruta requiera auth", async () => {
+  const request = {
+    headers: {},
+    params: { businessSlug: "barberia" },
+  };
+  const reflector = {
+    getAllAndOverride: (key) => key === REQUIRE_AUTH_KEY,
+  };
+  const config = { authRequired: false };
+  const jwt = {
+    verify: async () => {
+      throw new Error("No debe validar JWT con AUTH_REQUIRED=false.");
+    },
+  };
+  const identity = {
+    resolve: async () => {
+      throw new Error("No debe resolver identidad con AUTH_REQUIRED=false.");
+    },
+  };
+  const guard = new AuthGuard(reflector, config, jwt, identity);
+
+  assert.equal(await guard.canActivate(executionContext(request)), true);
+  assert.equal(request.user.id, "seed-user-demo-owner");
+  assert.equal(
+    request.user.memberships.some((membership) => membership.businessSlug === "barberia"),
+    true,
+  );
+});
+
+test("auth guard mantiene token Bearer requerido cuando AUTH_REQUIRED=true", async () => {
+  const request = {
+    headers: {},
+    params: { businessSlug: "barberia" },
+  };
+  const reflector = {
+    getAllAndOverride: (key) => key === IS_PUBLIC_KEY ? false : key === REQUIRE_AUTH_KEY,
+  };
+  const config = { authRequired: true };
+  const guard = new AuthGuard(reflector, config, {}, {});
+
+  await assert.rejects(
+    () => guard.canActivate(executionContext(request)),
+    (error) => error.getStatus() === 401
+      && error.getResponse().code === "AUTH_TOKEN_MISSING",
+  );
+});
+
+test("auth guard rechaza token invalido cuando AUTH_REQUIRED=true", async () => {
+  const request = {
+    headers: { authorization: "Bearer token-invalido" },
+    params: { businessSlug: "barberia" },
+  };
+  const reflector = {
+    getAllAndOverride: (key) => key === IS_PUBLIC_KEY ? false : key === REQUIRE_AUTH_KEY,
+  };
+  const config = { authRequired: true };
+  let verifyCalled = false;
+  const jwt = {
+    verify: async (token) => {
+      verifyCalled = true;
+      assert.equal(token, "token-invalido");
+      throw new UnauthorizedException({
+        code: "AUTH_TOKEN_INVALID",
+        message: "Token invalido.",
+      });
+    },
+  };
+  const identity = {
+    resolve: async () => {
+      throw new Error("No debe resolver identidad con token invalido.");
+    },
+  };
+  const guard = new AuthGuard(reflector, config, jwt, identity);
+
+  await assert.rejects(
+    () => guard.canActivate(executionContext(request)),
+    (error) => error.getStatus() === 401
+      && error.getResponse().code === "AUTH_TOKEN_INVALID",
+  );
+  assert.equal(verifyCalled, true);
+  assert.equal(request.user, undefined);
+});
+
+test("app config bloquea AUTH_REQUIRED=false en production", () => {
+  const previous = {
+    NODE_ENV: process.env.NODE_ENV,
+    AUTH_REQUIRED: process.env.AUTH_REQUIRED,
+  };
+
+  process.env.NODE_ENV = "production";
+  process.env.AUTH_REQUIRED = "false";
+
+  try {
+    assert.throws(
+      () => new AppConfig(),
+      /AUTH_REQUIRED=false no está permitido en production/,
+    );
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
 });

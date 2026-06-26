@@ -117,6 +117,10 @@ export class AppConfig {
   readonly databaseUrl = process.env.DATABASE_URL?.trim() || undefined;
 
   constructor() {
+    if (this.environment === "production" && !this.authRequired) {
+      throw new Error("AUTH_REQUIRED=false no está permitido en production.");
+    }
+
     if (this.authRequired && (!this.supabaseIssuerUrl || !this.supabaseJwksUrl)) {
       throw new Error(
         "Autenticación requerida: configura SUPABASE_PROJECT_URL o SUPABASE_ISSUER_URL y, si corresponde, SUPABASE_JWKS_URL.",
