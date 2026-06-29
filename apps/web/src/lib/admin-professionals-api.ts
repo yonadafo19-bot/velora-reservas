@@ -18,6 +18,17 @@ export interface AdminProfessionalAssignableService extends AdminProfessionalSer
   isActive: boolean;
 }
 
+export type AdminProfessionalLocationStatus = "ACTIVE" | "INACTIVE";
+
+export interface AdminProfessionalLocationOption {
+  id: string;
+  slug: string;
+  name: string;
+  addressLine: string | null;
+  city: string | null;
+  status: AdminProfessionalLocationStatus;
+}
+
 export interface AdminProfessional {
   id: string;
   slug: string;
@@ -28,6 +39,7 @@ export interface AdminProfessional {
   isActive: boolean;
   sortOrder: number;
   services: AdminProfessionalServiceOption[];
+  locations: AdminProfessionalLocationOption[];
 }
 
 export interface AdminProfessionalMutationInput {
@@ -47,12 +59,19 @@ export interface AdminProfessionalServicesInput {
   serviceIds: string[];
 }
 
+export interface AdminProfessionalLocationsInput {
+  businessSlug: string;
+  professionalId: string;
+  locationIds: string[];
+}
+
 export type AdminProfessionalsLoadState =
   | {
       status: "REAL_CONNECTED";
       businessSlug: string;
       professionals: AdminProfessional[];
       services: AdminProfessionalAssignableService[];
+      locations: AdminProfessionalLocationOption[];
     }
   | {
       status: "MISSING_CONFIG";
@@ -106,9 +125,10 @@ export async function getAdminProfessionalsData(
   const businessSlug = businessSlugByVertical[vertical];
 
   try {
-    const [professionalsPayload, servicesPayload] = await Promise.all([
+    const [professionalsPayload, servicesPayload, locationsPayload] = await Promise.all([
       getAdminApi<unknown>(config, `/businesses/${businessSlug}/professionals`),
       getAdminApi<unknown>(config, `/businesses/${businessSlug}/services`),
+      getAdminApi<unknown>(config, `/businesses/${businessSlug}/locations`),
     ]);
 
     return {
@@ -116,6 +136,7 @@ export async function getAdminProfessionalsData(
       businessSlug,
       professionals: requireProfessionals(professionalsPayload),
       services: requireAssignableServices(servicesPayload),
+      locations: requireLocations(locationsPayload),
     };
   } catch (error) {
     logAdminProfessionalsError(error);
@@ -192,6 +213,26 @@ export async function updateAdminProfessionalServices(
     `/businesses/${input.businessSlug}/professionals/${input.professionalId}/services`,
     "PUT",
     { serviceIds: input.serviceIds },
+  );
+}
+
+export async function updateAdminProfessionalLocations(
+  input: AdminProfessionalLocationsInput,
+): Promise<AdminProfessionalMutationResult> {
+  const config = getAdminApiConfig();
+  if (!config.ok) {
+    return {
+      ok: false,
+      code: "ADMIN_PROFESSIONALS_CONFIG_MISSING",
+      message: config.message,
+    };
+  }
+
+  return mutateAdminProfessional(
+    config,
+    `/businesses/${input.businessSlug}/professionals/${input.professionalId}/locations`,
+    "PUT",
+    { locationIds: input.locationIds },
   );
 }
 
@@ -318,6 +359,7 @@ function requireProfessional(payload: unknown): AdminProfessional {
     isActive: value.status === "ACTIVE",
     sortOrder: getIntegerOrDefault(value.sortOrder, 0),
     services: value.services.map(requireProfessionalService),
+    locations: Array.isArray(value.locations) ? value.locations.map(requireLocation) : [],
   };
 }
 
@@ -366,6 +408,37 @@ function requireAssignableService(payload: unknown): AdminProfessionalAssignable
   };
 }
 
+function requireLocations(payload: unknown): AdminProfessionalLocationOption[] {
+  if (!Array.isArray(payload)) {
+    throw new AdminProfessionalsLoadError("Admin locations payload is not an array.");
+  }
+
+  return payload.map(requireLocation).filter((location) => location.status === "ACTIVE");
+}
+
+function requireLocation(payload: unknown): AdminProfessionalLocationOption {
+  if (!payload || typeof payload !== "object") {
+    throw new AdminProfessionalsLoadError("Admin location payload is not an object.");
+  }
+
+  const value = payload as Partial<AdminProfessionalLocationOption>;
+
+  if (!isNonEmptyString(value.id)
+    || !isNonEmptyString(value.name)
+    || !isAdminProfessionalLocationStatus(value.status)) {
+    throw new AdminProfessionalsLoadError("Admin location payload has invalid shape.");
+  }
+
+  return {
+    id: value.id,
+    slug: typeof value.slug === "string" ? value.slug : "",
+    name: value.name,
+    addressLine: typeof value.addressLine === "string" ? value.addressLine : null,
+    city: typeof value.city === "string" ? value.city : null,
+    status: value.status,
+  };
+}
+
 function getAdminApiConfig():
   | { ok: true; apiUrl: string; token: string }
   | { ok: false; message: string } {
@@ -394,6 +467,9 @@ function mapAdminProfessionalError(code: string): string {
     ADMIN_PROFESSIONAL_SERVICES_INVALID_INPUT: "Revisa los servicios asignados.",
     ADMIN_PROFESSIONAL_SERVICES_DUPLICATED: "No repitas servicios para el mismo profesional.",
     ADMIN_PROFESSIONAL_SERVICE_INVALID: "Uno o mas servicios no estan disponibles para este negocio.",
+    ADMIN_PROFESSIONAL_LOCATIONS_INVALID_INPUT: "Revisa las sucursales asignadas.",
+    ADMIN_PROFESSIONAL_LOCATIONS_DUPLICATED: "No repitas sucursales para el mismo profesional.",
+    ADMIN_PROFESSIONAL_LOCATION_INVALID: "Una o mas sucursales no estan disponibles para este negocio.",
     TENANT_BUSINESS_MISMATCH: "No tienes acceso a este negocio.",
   };
 
@@ -415,6 +491,10 @@ function logAdminProfessionalsError(error: unknown) {
 
 function isAdminProfessionalStatus(value: unknown): value is AdminProfessionalStatus {
   return value === "ACTIVE" || value === "INACTIVE" || value === "ARCHIVED";
+}
+
+function isAdminProfessionalLocationStatus(value: unknown): value is AdminProfessionalLocationStatus {
+  return value === "ACTIVE" || value === "INACTIVE";
 }
 
 function isNonEmptyString(value: unknown): value is string {

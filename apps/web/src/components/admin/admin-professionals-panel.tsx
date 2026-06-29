@@ -6,11 +6,13 @@ import { useRouter } from "next/navigation";
 import {
   createAdminProfessionalAction,
   updateAdminProfessionalAction,
+  updateAdminProfessionalLocationsAction,
   updateAdminProfessionalServicesAction,
 } from "@/app/admin/profesionales/actions";
 import type {
   AdminProfessional,
   AdminProfessionalAssignableService,
+  AdminProfessionalLocationOption,
   AdminProfessionalMutationInput,
   AdminProfessionalsLoadState,
   AdminProfessionalStatus,
@@ -25,6 +27,7 @@ interface FormState {
   email: string;
   status: AdminProfessionalStatus;
   serviceIds: string[];
+  locationIds: string[];
 }
 
 const emptyForm: FormState = {
@@ -36,6 +39,7 @@ const emptyForm: FormState = {
   email: "",
   status: "ACTIVE",
   serviceIds: [],
+  locationIds: [],
 };
 
 const statusLabel: Record<AdminProfessionalStatus, string> = {
@@ -65,6 +69,7 @@ export function AdminProfessionalsPanel({ state }: { state: AdminProfessionalsLo
     businessSlug={state.businessSlug}
     professionals={state.professionals}
     services={state.services}
+    locations={state.locations}
   />;
 }
 
@@ -72,10 +77,12 @@ function ConnectedProfessionalsPanel({
   businessSlug,
   professionals,
   services,
+  locations,
 }: {
   businessSlug: string;
   professionals: AdminProfessional[];
   services: AdminProfessionalAssignableService[];
+  locations: AdminProfessionalLocationOption[];
 }) {
   const router = useRouter();
   const [formState, setFormState] = useState<FormState>(emptyForm);
@@ -94,6 +101,7 @@ function ConnectedProfessionalsPanel({
       email: "",
       status: professional.status,
       serviceIds: professional.services.map((service) => service.id),
+      locationIds: professional.locations.map((location) => location.id),
     });
     setMessage(null);
   }
@@ -129,6 +137,17 @@ function ConnectedProfessionalsPanel({
         return;
       }
 
+      const locationsResult = await updateAdminProfessionalLocationsAction({
+        businessSlug,
+        professionalId: professionalResult.professional.id,
+        locationIds: formState.locationIds,
+      });
+
+      if (!locationsResult.ok) {
+        setMessage({ type: "error", text: locationsResult.message });
+        return;
+      }
+
       setMessage({
         type: "success",
         text: isEditing ? "Profesional actualizado correctamente." : "Profesional creado correctamente.",
@@ -144,6 +163,7 @@ function ConnectedProfessionalsPanel({
       <article><small>Activos</small><strong>{activeCount}</strong><em>Disponibles para agenda</em></article>
       <article><small>Inactivos / archivados</small><strong>{professionals.length - activeCount}</strong><em>No aparecen como activos</em></article>
       <article><small>Servicios activos</small><strong>{services.length}</strong><em>Asignables al equipo</em></article>
+      <article><small>Sucursales activas</small><strong>{locations.length}</strong><em>Asignables al equipo</em></article>
     </div>
 
     <section className="admin-panel">
@@ -158,6 +178,7 @@ function ConnectedProfessionalsPanel({
       <ProfessionalForm
         value={formState}
         services={services}
+        locations={locations}
         isPending={isPending}
         onCancel={() => {
           setFormState(emptyForm);
@@ -219,6 +240,7 @@ function ConnectedProfessionalsPanel({
 function ProfessionalForm({
   value,
   services,
+  locations,
   isPending,
   onCancel,
   onChange,
@@ -226,6 +248,7 @@ function ProfessionalForm({
 }: {
   value: FormState;
   services: AdminProfessionalAssignableService[];
+  locations: AdminProfessionalLocationOption[];
   isPending: boolean;
   onCancel: () => void;
   onChange: (patch: Partial<FormState>) => void;
@@ -260,6 +283,23 @@ function ProfessionalForm({
           <span>{service.name}</span>
         </label>)}</div>}
     </div>
+    <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
+      <strong style={{ fontSize: 13 }}>Sucursales asignadas</strong>
+      {locations.length === 0
+        ? <div className="demo-notice"><span><strong>Sin sucursales activas</strong>Activa al menos una sucursal antes de asignarla al equipo.</span></div>
+        : <div className="form-grid">{locations.map((location) => <label key={location.id} style={{ alignItems: "center", display: "flex", flexDirection: "row", gap: 10 }}>
+          <input
+            type="checkbox"
+            checked={value.locationIds.includes(location.id)}
+            onChange={(event) => onChange({
+              locationIds: event.target.checked
+                ? [...value.locationIds, location.id]
+                : value.locationIds.filter((locationId) => locationId !== location.id),
+            })}
+          />
+          <span>{formatLocationLabel(location)}</span>
+        </label>)}</div>}
+    </div>
     <div className="button-row" style={{ justifyContent: "flex-end", marginTop: 18 }}>
       <button className="button button--ghost" type="button" onClick={onCancel} disabled={isPending}>Limpiar</button>
       <button className="button" type="submit" disabled={isPending}>{isPending ? "Guardando..." : value.professionalId ? "Guardar cambios" : "Crear profesional"}</button>
@@ -286,6 +326,8 @@ function ProfessionalCard({
     <p>{professional.roleTitle ?? "Sin rol definido."}</p>
     <div><span>{professional.services.length} servicios</span><span className={`status ${professional.status === "ACTIVE" ? "status--confirmed" : "status--cancelled"}`}>{statusLabel[professional.status]}</span></div>
     <p>{professional.services.length ? professional.services.map((service) => service.name).join(", ") : "Sin servicios asignados."}</p>
+    <div><span>{professional.locations.length} sucursales</span></div>
+    <p>{professional.locations.length ? professional.locations.map(formatLocationLabel).join(", ") : "Sin sucursales asignadas."}</p>
     <div className="button-row" style={{ gap: 10, justifyContent: "center", marginTop: 16 }}>
       <button className="button button--ghost" type="button" onClick={onEdit} disabled={isPending}>Editar</button>
       {professional.status === "ACTIVE"
@@ -351,4 +393,8 @@ function initials(name: string) {
     .map((part) => part[0])
     .join("")
     .toUpperCase();
+}
+
+function formatLocationLabel(location: AdminProfessionalLocationOption) {
+  return [location.name, location.city].filter(Boolean).join(" - ");
 }

@@ -5,7 +5,9 @@ import { revalidatePath } from "next/cache";
 import {
   createAdminProfessional,
   updateAdminProfessional,
+  updateAdminProfessionalLocations,
   updateAdminProfessionalServices,
+  type AdminProfessionalLocationsInput,
   type AdminProfessionalMutationInput,
   type AdminProfessionalMutationResult,
   type AdminProfessionalServicesInput,
@@ -63,12 +65,27 @@ export async function updateAdminProfessionalServicesAction(
   return result;
 }
 
+export async function updateAdminProfessionalLocationsAction(
+  input: AdminProfessionalLocationsInput,
+): Promise<AdminProfessionalMutationResult> {
+  const validation = validateProfessionalLocationsInput(input);
+  if (!validation.ok) {
+    return validation;
+  }
+
+  const result = await updateAdminProfessionalLocations(validation.input);
+  revalidateAfterProfessionalMutation(result);
+
+  return result;
+}
+
 function revalidateAfterProfessionalMutation(result: AdminProfessionalMutationResult) {
   if (!result.ok) {
     return;
   }
 
   revalidatePath("/admin/profesionales");
+  revalidatePath("/admin/horarios");
   revalidatePath("/admin/citas");
 }
 
@@ -131,6 +148,42 @@ function validateProfessionalServicesInput(input: AdminProfessionalServicesInput
       businessSlug: input.businessSlug.trim(),
       professionalId: input.professionalId.trim(),
       serviceIds,
+    },
+  };
+}
+
+function validateProfessionalLocationsInput(input: AdminProfessionalLocationsInput):
+  | { ok: true; input: AdminProfessionalLocationsInput }
+  | { ok: false; code: string; message: string } {
+  if (!input || typeof input !== "object"
+    || !isNonEmptyString(input.businessSlug)
+    || !isNonEmptyString(input.professionalId)
+    || !Array.isArray(input.locationIds)) {
+    return invalidInput("Revisa las sucursales asignadas.");
+  }
+
+  const locationIds = input.locationIds
+    .filter(isNonEmptyString)
+    .map((locationId) => locationId.trim());
+
+  if (locationIds.length !== input.locationIds.length) {
+    return invalidInput("Revisa las sucursales asignadas.");
+  }
+
+  if (new Set(locationIds).size !== locationIds.length) {
+    return {
+      ok: false,
+      code: "ADMIN_PROFESSIONAL_LOCATIONS_DUPLICATED",
+      message: "No repitas sucursales para el mismo profesional.",
+    };
+  }
+
+  return {
+    ok: true,
+    input: {
+      businessSlug: input.businessSlug.trim(),
+      professionalId: input.professionalId.trim(),
+      locationIds,
     },
   };
 }

@@ -39,6 +39,30 @@ export class BusinessProfessionalsService {
             { service: { id: "asc" } },
           ],
         },
+        locations: {
+          where: {
+            status: "ACTIVE",
+            location: {
+              status: "ACTIVE",
+            },
+          },
+          select: {
+            location: {
+              select: {
+                id: true,
+                slug: true,
+                name: true,
+                addressLine: true,
+                city: true,
+                status: true,
+              },
+            },
+          },
+          orderBy: [
+            { locationId: "asc" },
+            { id: "asc" },
+          ],
+        },
       },
       orderBy: [
         { sortOrder: "asc" },
@@ -57,6 +81,14 @@ export class BusinessProfessionalsService {
       services: professional.services.map(({ service }) => ({
         id: service.id,
         name: service.name,
+      })),
+      locations: professional.locations.map(({ location }) => ({
+        id: location.id,
+        slug: location.slug,
+        name: location.name,
+        addressLine: location.addressLine,
+        city: location.city,
+        status: location.status,
       })),
     }));
   }

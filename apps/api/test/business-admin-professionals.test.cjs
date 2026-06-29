@@ -35,6 +35,18 @@ function professionalRow(overrides = {}) {
         },
       },
     ],
+    locations: [
+      {
+        location: {
+          id: "location-1",
+          slug: "providencia-demo",
+          name: "Sucursal Providencia Demo",
+          addressLine: "Av. Providencia 123",
+          city: "Santiago",
+          status: "ACTIVE",
+        },
+      },
+    ],
     ...overrides,
   };
 }
@@ -45,6 +57,8 @@ function serviceWithMocks(options = {}) {
     professionalUpdateMany: [],
     professionalServiceUpdateMany: [],
     professionalServiceCreate: [],
+    professionalLocationUpdateMany: [],
+    professionalLocationCreate: [],
   };
   const rows = {
     existingProfessional: Object.prototype.hasOwnProperty.call(options, "existingProfessional")
@@ -55,6 +69,22 @@ function serviceWithMocks(options = {}) {
       ? options.services
       : [{ id: "service-1" }],
     professionalServiceExisting: options.professionalServiceExisting ?? null,
+    professionalLocationExisting: options.professionalLocationExisting ?? null,
+    locations: Object.prototype.hasOwnProperty.call(options, "locations")
+      ? options.locations
+      : [{ id: "location-1" }],
+    locationRows: Object.prototype.hasOwnProperty.call(options, "locationRows")
+      ? options.locationRows
+      : [
+        {
+          id: "location-1",
+          slug: "providencia-demo",
+          name: "Sucursal Providencia Demo",
+          addressLine: "Av. Providencia 123",
+          city: "Santiago",
+          status: "ACTIVE",
+        },
+      ],
     response: options.response ?? professionalRow(),
   };
   const transaction = {
@@ -87,6 +117,15 @@ function serviceWithMocks(options = {}) {
         return rows.services;
       },
     },
+    location: {
+      findMany: async (query) => {
+        calls.locationFindMany = query;
+        if (query.select?.slug) {
+          return rows.locationRows;
+        }
+        return rows.locations;
+      },
+    },
     professionalService: {
       updateMany: async (query) => {
         calls.professionalServiceUpdateMany.push(query);
@@ -99,6 +138,20 @@ function serviceWithMocks(options = {}) {
       create: async (query) => {
         calls.professionalServiceCreate.push(query);
         return { id: "professional-service-1" };
+      },
+    },
+    professionalLocation: {
+      updateMany: async (query) => {
+        calls.professionalLocationUpdateMany.push(query);
+        return { count: 1 };
+      },
+      findFirst: async (query) => {
+        calls.professionalLocationFindFirst = query;
+        return rows.professionalLocationExisting;
+      },
+      create: async (query) => {
+        calls.professionalLocationCreate.push(query);
+        return { id: "professional-location-1" };
       },
     },
   };
@@ -152,6 +205,37 @@ test("business admin professionals crea profesional valido tenant-safe", async (
   });
   assert.equal(response.displayName, "Matias Rojas");
   assert.deepEqual(response.services, [{ id: "service-1", name: "Corte clasico" }]);
+  assert.deepEqual(response.locations, [
+    {
+      id: "location-1",
+      slug: "providencia-demo",
+      name: "Sucursal Providencia Demo",
+      addressLine: "Av. Providencia 123",
+      city: "Santiago",
+      status: "ACTIVE",
+    },
+  ]);
+});
+
+test("business admin professionals lista ubicaciones activas tenant-safe", async () => {
+  const { service, calls } = serviceWithMocks();
+
+  const response = await service.listLocations(tenantContext(), "velora-barberia-demo");
+
+  assert.deepEqual(calls.locationFindMany.where, {
+    businessId: "business-tenant-1",
+    status: "ACTIVE",
+  });
+  assert.deepEqual(response, [
+    {
+      id: "location-1",
+      slug: "providencia-demo",
+      name: "Sucursal Providencia Demo",
+      addressLine: "Av. Providencia 123",
+      city: "Santiago",
+      status: "ACTIVE",
+    },
+  ]);
 });
 
 test("business admin professionals actualiza profesional del mismo tenant", async () => {
@@ -303,6 +387,108 @@ test("business admin professionals rechaza serviceIds duplicados", async () => {
     ),
     400,
     "ADMIN_PROFESSIONAL_SERVICES_DUPLICATED",
+  );
+});
+
+test("business admin professionals asocia ubicaciones validas", async () => {
+  const { service, calls } = serviceWithMocks({
+    professionalLocationExisting: { id: "professional-location-existing" },
+  });
+
+  const response = await service.replaceProfessionalLocations(
+    tenantContext(),
+    "velora-barberia-demo",
+    "professional-1",
+    { locationIds: ["location-1"] },
+  );
+
+  assert.deepEqual(calls.locationFindMany.where, {
+    businessId: "business-tenant-1",
+    id: {
+      in: ["location-1"],
+    },
+    status: "ACTIVE",
+  });
+  assert.deepEqual(calls.professionalLocationUpdateMany[0].where, {
+    businessId: "business-tenant-1",
+    professionalId: "professional-1",
+    status: "ACTIVE",
+    locationId: {
+      notIn: ["location-1"],
+    },
+  });
+  assert.deepEqual(calls.professionalLocationUpdateMany[1], {
+    where: {
+      id: "professional-location-existing",
+      businessId: "business-tenant-1",
+    },
+    data: {
+      status: "ACTIVE",
+    },
+  });
+  assert.equal(response.id, "professional-1");
+});
+
+test("business admin professionals crea relacion ubicacion si no existe", async () => {
+  const { service, calls } = serviceWithMocks();
+
+  await service.replaceProfessionalLocations(
+    tenantContext(),
+    "velora-barberia-demo",
+    "professional-1",
+    { locationIds: ["location-1"] },
+  );
+
+  assert.deepEqual(calls.professionalLocationCreate[0].data, {
+    businessId: "business-tenant-1",
+    professionalId: "professional-1",
+    locationId: "location-1",
+    status: "ACTIVE",
+  });
+});
+
+test("business admin professionals rechaza ubicacion de otro negocio o inactiva", async () => {
+  const { service } = serviceWithMocks({ locations: [] });
+
+  await rejectsWithCode(
+    () => service.replaceProfessionalLocations(
+      tenantContext(),
+      "velora-barberia-demo",
+      "professional-1",
+      { locationIds: ["location-other-tenant"] },
+    ),
+    400,
+    "ADMIN_PROFESSIONAL_LOCATION_INVALID",
+  );
+});
+
+test("business admin professionals rechaza locationIds duplicados", async () => {
+  const { service } = serviceWithMocks();
+
+  await rejectsWithCode(
+    () => service.replaceProfessionalLocations(
+      tenantContext(),
+      "velora-barberia-demo",
+      "professional-1",
+      { locationIds: ["location-1", "location-1"] },
+    ),
+    400,
+    "ADMIN_PROFESSIONAL_LOCATIONS_DUPLICATED",
+  );
+});
+
+test("business admin professionals rechaza ubicaciones para profesional de otro negocio", async () => {
+  const { service } = serviceWithMocks({ existingProfessional: null });
+
+  await rejectsWithCode(
+    () => service.replaceProfessionalLocations(
+      tenantContext(),
+      "velora-barberia-demo",
+      "professional-other-tenant",
+      { locationIds: ["location-1"] },
+    ),
+    404,
+    "ADMIN_PROFESSIONAL_NOT_FOUND",
   );
 });
 

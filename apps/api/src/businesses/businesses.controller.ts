@@ -11,6 +11,7 @@ import {
 import {
   BusinessAdminProfessionalsService,
   type AdminProfessionalCreateRequest,
+  type AdminProfessionalLocationsReplaceRequest,
   type AdminProfessionalServicesReplaceRequest,
   type AdminProfessionalUpdateRequest,
 } from "./business-admin-professionals.service";
@@ -64,6 +65,15 @@ export class BusinessesController {
   @RequireTenant()
   services(@CurrentTenant() tenant: TenantContext) {
     return this.businessServices.listServices(tenant);
+  }
+
+  @Get(":businessSlug/locations")
+  @RequireTenant()
+  locations(
+    @CurrentTenant() tenant: TenantContext,
+    @Param("businessSlug") businessSlug: string,
+  ) {
+    return this.businessAdminProfessionals.listLocations(tenant, businessSlug);
   }
 
   @Post(":businessSlug/services")
@@ -128,6 +138,22 @@ export class BusinessesController {
     @Body() body: AdminProfessionalServicesReplaceRequest,
   ) {
     return this.businessAdminProfessionals.replaceProfessionalServices(
+      tenant,
+      businessSlug,
+      professionalId,
+      body,
+    );
+  }
+
+  @Put(":businessSlug/professionals/:professionalId/locations")
+  @RequireTenant()
+  replaceProfessionalLocations(
+    @CurrentTenant() tenant: TenantContext,
+    @Param("businessSlug") businessSlug: string,
+    @Param("professionalId") professionalId: string,
+    @Body() body: AdminProfessionalLocationsReplaceRequest,
+  ) {
+    return this.businessAdminProfessionals.replaceProfessionalLocations(
       tenant,
       businessSlug,
       professionalId,

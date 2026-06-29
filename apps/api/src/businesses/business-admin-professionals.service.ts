@@ -42,9 +42,47 @@ export interface AdminProfessionalServicesReplaceRequest {
   serviceIds: string[];
 }
 
+export interface AdminProfessionalLocationsReplaceRequest {
+  locationIds: string[];
+}
+
 @Injectable()
 export class BusinessAdminProfessionalsService {
   constructor(private readonly transactions: TransactionService) {}
+
+  async listLocations(tenant: TenantContext, businessSlug: string) {
+    this.assertTenantSlug(tenant, businessSlug);
+
+    return this.transactions.runInTransaction(async (transaction) => {
+      const locations = await transaction.location.findMany({
+        where: {
+          businessId: tenant.businessId,
+          status: "ACTIVE",
+        },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          addressLine: true,
+          city: true,
+          status: true,
+        },
+        orderBy: [
+          { name: "asc" },
+          { id: "asc" },
+        ],
+      });
+
+      return locations.map((location) => ({
+        id: location.id,
+        slug: location.slug,
+        name: location.name,
+        addressLine: location.addressLine,
+        city: location.city,
+        status: location.status,
+      }));
+    });
+  }
 
   async createProfessional(
     tenant: TenantContext,
@@ -179,6 +217,71 @@ export class BusinessAdminProfessionalsService {
     });
   }
 
+  async replaceProfessionalLocations(
+    tenant: TenantContext,
+    businessSlug: string,
+    professionalId: string,
+    body: AdminProfessionalLocationsReplaceRequest,
+  ) {
+    this.assertTenantSlug(tenant, businessSlug);
+    const locationIds = this.validateLocationIdsInput(body);
+
+    return this.transactions.runInTransaction(async (transaction) => {
+      await this.getExistingProfessional(transaction, tenant.businessId, professionalId);
+      await this.assertLocationsAvailable(transaction, tenant.businessId, locationIds);
+
+      await transaction.professionalLocation.updateMany({
+        where: {
+          businessId: tenant.businessId,
+          professionalId,
+          status: "ACTIVE",
+          locationId: {
+            notIn: locationIds,
+          },
+        },
+        data: {
+          status: "INACTIVE",
+        },
+      });
+
+      for (const locationId of locationIds) {
+        const existing = await transaction.professionalLocation.findFirst({
+          where: {
+            businessId: tenant.businessId,
+            professionalId,
+            locationId,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        if (existing) {
+          await transaction.professionalLocation.updateMany({
+            where: {
+              id: existing.id,
+              businessId: tenant.businessId,
+            },
+            data: {
+              status: "ACTIVE",
+            },
+          });
+        } else {
+          await transaction.professionalLocation.create({
+            data: {
+              businessId: tenant.businessId,
+              professionalId,
+              locationId,
+              status: "ACTIVE",
+            },
+          });
+        }
+      }
+
+      return this.getProfessionalResponse(transaction, tenant.businessId, professionalId);
+    });
+  }
+
   private async getExistingProfessional(
     transaction: PrismaTransaction,
     businessId: string,
@@ -241,6 +344,30 @@ export class BusinessAdminProfessionalsService {
             { service: { id: "asc" } },
           ],
         },
+        locations: {
+          where: {
+            status: "ACTIVE",
+            location: {
+              status: "ACTIVE",
+            },
+          },
+          select: {
+            location: {
+              select: {
+                id: true,
+                slug: true,
+                name: true,
+                addressLine: true,
+                city: true,
+                status: true,
+              },
+            },
+          },
+          orderBy: [
+            { locationId: "asc" },
+            { id: "asc" },
+          ],
+        },
       },
     });
 
@@ -260,6 +387,14 @@ export class BusinessAdminProfessionalsService {
       services: professional.services.map(({ service }) => ({
         id: service.id,
         name: service.name,
+      })),
+      locations: professional.locations.map(({ location }) => ({
+        id: location.id,
+        slug: location.slug,
+        name: location.name,
+        addressLine: location.addressLine,
+        city: location.city,
+        status: location.status,
       })),
     };
   }
@@ -312,6 +447,33 @@ export class BusinessAdminProfessionalsService {
       throw new BadRequestException({
         code: "ADMIN_PROFESSIONAL_SERVICE_INVALID",
         message: "Uno o mas servicios no estan disponibles para este negocio.",
+      });
+    }
+  }
+
+  private async assertLocationsAvailable(
+    transaction: PrismaTransaction,
+    businessId: string,
+    locationIds: string[],
+  ) {
+    const locations = await transaction.location.findMany({
+      where: {
+        businessId,
+        id: {
+          in: locationIds,
+        },
+        status: "ACTIVE",
+      },
+      select: {
+        id: true,
+      },
+    });
+    const foundIds = new Set(locations.map((location) => location.id));
+
+    if (!locationIds.every((locationId) => foundIds.has(locationId))) {
+      throw new BadRequestException({
+        code: "ADMIN_PROFESSIONAL_LOCATION_INVALID",
+        message: "Una o mas sucursales no estan disponibles para este negocio.",
       });
     }
   }
@@ -394,6 +556,29 @@ export class BusinessAdminProfessionalsService {
     }
 
     return body.serviceIds.map((serviceId) => serviceId.trim());
+  }
+
+  private validateLocationIdsInput(body: AdminProfessionalLocationsReplaceRequest): string[] {
+    if (!body || typeof body !== "object" || !Array.isArray(body.locationIds)) {
+      throw new BadRequestException({
+        code: "ADMIN_PROFESSIONAL_LOCATIONS_INVALID_INPUT",
+        message: "Las sucursales del profesional no son validas.",
+      });
+    }
+    if (!body.locationIds.every((locationId) => this.isNonEmptyString(locationId))) {
+      throw new BadRequestException({
+        code: "ADMIN_PROFESSIONAL_LOCATIONS_INVALID_INPUT",
+        message: "Las sucursales del profesional no son validas.",
+      });
+    }
+    if (new Set(body.locationIds).size !== body.locationIds.length) {
+      throw new BadRequestException({
+        code: "ADMIN_PROFESSIONAL_LOCATIONS_DUPLICATED",
+        message: "No repitas sucursales para el mismo profesional.",
+      });
+    }
+
+    return body.locationIds.map((locationId) => locationId.trim());
   }
 
   private assertTenantSlug(tenant: TenantContext, businessSlug: string) {
