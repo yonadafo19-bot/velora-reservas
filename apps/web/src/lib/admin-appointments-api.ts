@@ -428,10 +428,17 @@ function getSantiagoTodayDate(): string {
 function mapCreateAppointmentError(code: string): string {
   const messages: Record<string, string> = {
     APPOINTMENT_CREATE_INVALID_INPUT: "Revisa los datos de la cita.",
+    APPOINTMENT_INVALID_SERVICE_SELECTION: "Selecciona un servicio valido para la cita.",
+    APPOINTMENT_SLOT_IN_PAST: "El horario seleccionado ya paso.",
+    APPOINTMENT_OUTSIDE_BUSINESS_HOURS: "El horario esta fuera del horario del negocio.",
+    APPOINTMENT_OUTSIDE_PROFESSIONAL_AVAILABILITY: "El profesional no esta disponible en ese horario.",
+    APPOINTMENT_SLOT_BLOCKED: "Ese horario esta bloqueado. Elige otro.",
+    APPOINTMENT_SLOT_ALREADY_TAKEN: "Ese horario ya fue reservado. Elige otro.",
     LOCATION_NOT_FOUND: "La ubicacion seleccionada no esta disponible.",
     CUSTOMER_NOT_FOUND: "El cliente seleccionado no existe.",
     SERVICE_NOT_FOUND: "El servicio seleccionado no existe.",
     PROFESSIONAL_NOT_FOUND: "El profesional seleccionado no existe.",
+    PROFESSIONAL_SERVICE_NOT_AVAILABLE: "El profesional no realiza el servicio seleccionado.",
     PROFESSIONAL_SERVICE_NOT_ALLOWED: "El profesional no realiza el servicio seleccionado.",
   };
 

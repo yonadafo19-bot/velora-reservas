@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 
 import { TransactionService } from "../common/database/transaction.service";
 import type { TenantContext } from "../common/types/request-user";
+import { AppointmentSchedulingService } from "./appointment-scheduling.service";
 import { BusinessAppointmentDetailService } from "./business-appointment-detail.service";
 
 const ALLOWED_APPOINTMENT_SOURCES = new Set([
@@ -34,6 +35,7 @@ export class BusinessAppointmentCreateService {
   constructor(
     private readonly transactions: TransactionService,
     private readonly appointmentDetail: BusinessAppointmentDetailService,
+    private readonly scheduling: AppointmentSchedulingService,
   ) {}
 
   async createAppointment(
@@ -155,7 +157,7 @@ export class BusinessAppointmentCreateService {
 
         if (!input.serviceIds.every((serviceId) => allowedServiceIds.has(serviceId))) {
           throw new BadRequestException({
-            code: "PROFESSIONAL_SERVICE_NOT_ALLOWED",
+            code: "PROFESSIONAL_SERVICE_NOT_AVAILABLE",
             message: "El profesional no puede realizar uno o mas servicios.",
           });
         }
@@ -172,6 +174,17 @@ export class BusinessAppointmentCreateService {
       const endAt = new Date(
         input.startAt.getTime() + (totalDurationMinutes * MILLISECONDS_PER_MINUTE),
       );
+
+      if (input.professionalId) {
+        await this.scheduling.assertCanSchedule(transaction, {
+          businessId: tenant.businessId,
+          locationId: input.locationId,
+          professionalId: input.professionalId,
+          startAt: input.startAt,
+          endAt,
+          timezone: location.timezone ?? business.timezone,
+        });
+      }
 
       const appointment = await transaction.appointment.create({
         data: {
@@ -265,16 +278,19 @@ export class BusinessAppointmentCreateService {
 
     if (!this.isNonEmptyString(body.locationId)
       || !this.isNonEmptyString(body.customerId)
-      || !this.isNonEmptyString(body.startAt)
-      || !Array.isArray(body.serviceIds)
+      || !this.isNonEmptyString(body.startAt)) {
+      throw this.invalidInput();
+    }
+
+    if (!Array.isArray(body.serviceIds)
       || body.serviceIds.length === 0
       || !body.serviceIds.every((serviceId) => this.isNonEmptyString(serviceId))) {
-      throw this.invalidInput();
+      throw this.invalidServiceSelection();
     }
 
     const uniqueServiceIds = new Set(body.serviceIds);
     if (uniqueServiceIds.size !== body.serviceIds.length) {
-      throw this.invalidInput();
+      throw this.invalidServiceSelection();
     }
 
     const startAt = new Date(body.startAt);
@@ -320,6 +336,13 @@ export class BusinessAppointmentCreateService {
     return new BadRequestException({
       code: "APPOINTMENT_CREATE_INVALID_INPUT",
       message: "Los datos de la cita no son validos.",
+    });
+  }
+
+  private invalidServiceSelection(): BadRequestException {
+    return new BadRequestException({
+      code: "APPOINTMENT_INVALID_SERVICE_SELECTION",
+      message: "Selecciona uno o mas servicios validos para la cita.",
     });
   }
 }

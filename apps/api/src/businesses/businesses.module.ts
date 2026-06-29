@@ -3,6 +3,7 @@
 import { DatabaseModule } from "../common/database/database.module";
 import { TenantGuard } from "../tenancy/tenant.guard";
 import { TenancyModule } from "../tenancy/tenancy.module";
+import { AppointmentSchedulingService } from "./appointment-scheduling.service";
 import { BusinessAppointmentCreateService } from "./business-appointment-create.service";
 import { BusinessAppointmentDetailService } from "./business-appointment-detail.service";
 import { BusinessAppointmentStatusService } from "./business-appointment-status.service";
@@ -26,6 +27,7 @@ import { BusinessesController } from "./businesses.controller";
     BusinessCustomersService,
     BusinessAppointmentsService,
     BusinessAppointmentDetailService,
+    AppointmentSchedulingService,
     BusinessAppointmentCreateService,
     BusinessAppointmentStatusService,
     BusinessCalendarDashboardService,

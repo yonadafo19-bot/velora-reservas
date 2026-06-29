@@ -4,6 +4,9 @@ const { test } = require("node:test");
 const {
   BusinessAppointmentCreateService,
 } = require("../dist/businesses/business-appointment-create.service.js");
+const {
+  AppointmentSchedulingService,
+} = require("../dist/businesses/appointment-scheduling.service.js");
 
 function tenantContext() {
   return {
@@ -135,6 +138,33 @@ function serviceWithMocks(options = {}) {
         { serviceId: "service-1" },
         { serviceId: "service-2" },
       ],
+    businessHours: Object.prototype.hasOwnProperty.call(options, "businessHours")
+      ? options.businessHours
+      : [
+        {
+          weekday: "WEDNESDAY",
+          opensAtLocal: "09:00",
+          closesAtLocal: "18:00",
+        },
+      ],
+    professionalAvailabilityRules: Object.prototype.hasOwnProperty.call(
+      options,
+      "professionalAvailabilityRules",
+    )
+      ? options.professionalAvailabilityRules
+      : [
+        {
+          weekday: "WEDNESDAY",
+          startsAtLocal: "09:00",
+          endsAtLocal: "18:00",
+        },
+      ],
+    timeOff: Object.prototype.hasOwnProperty.call(options, "timeOff")
+      ? options.timeOff
+      : null,
+    overlappingSegment: Object.prototype.hasOwnProperty.call(options, "overlappingSegment")
+      ? options.overlappingSegment
+      : null,
   };
 
   const transactionClient = {
@@ -174,6 +204,24 @@ function serviceWithMocks(options = {}) {
         return rows.professionalServices;
       },
     },
+    businessHour: {
+      findMany: async (query) => {
+        calls.businessHours = query;
+        return rows.businessHours;
+      },
+    },
+    professionalAvailabilityRule: {
+      findMany: async (query) => {
+        calls.professionalAvailabilityRules = query;
+        return rows.professionalAvailabilityRules;
+      },
+    },
+    timeOff: {
+      findFirst: async (query) => {
+        calls.timeOff = query;
+        return rows.timeOff;
+      },
+    },
     appointment: {
       create: async (query) => {
         calls.appointmentCreate = query;
@@ -189,6 +237,10 @@ function serviceWithMocks(options = {}) {
       },
     },
     appointmentSegment: {
+      findFirst: async (query) => {
+        calls.appointmentSegmentCollision = query;
+        return rows.overlappingSegment;
+      },
       create: async (query) => {
         calls.appointmentSegments.push(query);
         return {
@@ -220,7 +272,11 @@ function serviceWithMocks(options = {}) {
   };
 
   return {
-    service: new BusinessAppointmentCreateService(transactions, appointmentDetail),
+    service: new BusinessAppointmentCreateService(
+      transactions,
+      appointmentDetail,
+      new AppointmentSchedulingService(),
+    ),
     calls,
   };
 }
@@ -249,7 +305,7 @@ test("business appointment create rechaza serviceIds vacio", async () => {
   await rejectsWithCode(
     () => service.createAppointment(tenantContext(), validBody({ serviceIds: [] })),
     400,
-    "APPOINTMENT_CREATE_INVALID_INPUT",
+    "APPOINTMENT_INVALID_SERVICE_SELECTION",
   );
 });
 
@@ -261,7 +317,7 @@ test("business appointment create rechaza serviceIds duplicados", async () => {
       serviceIds: ["service-1", "service-1"],
     })),
     400,
-    "APPOINTMENT_CREATE_INVALID_INPUT",
+    "APPOINTMENT_INVALID_SERVICE_SELECTION",
   );
 });
 
@@ -296,6 +352,10 @@ test("business appointment create usa businessId desde TenantContext en lecturas
   assert.equal(calls.services.where.businessId, "business-tenant-1");
   assert.equal(calls.professional.where.businessId, "business-tenant-1");
   assert.equal(calls.professionalServices.where.businessId, "business-tenant-1");
+  assert.equal(calls.businessHours.where.businessId, "business-tenant-1");
+  assert.equal(calls.professionalAvailabilityRules.where.businessId, "business-tenant-1");
+  assert.equal(calls.timeOff.where.businessId, "business-tenant-1");
+  assert.equal(calls.appointmentSegmentCollision.where.businessId, "business-tenant-1");
   assert.equal(calls.appointmentCreate.data.businessId, "business-tenant-1");
   assert.equal(calls.appointmentServices[0].data.businessId, "business-tenant-1");
   assert.equal(calls.appointmentSegments[0].data.businessId, "business-tenant-1");
@@ -382,7 +442,83 @@ test("business appointment create rechaza professional sin ProfessionalService a
   await rejectsWithCode(
     () => service.createAppointment(tenantContext(), validBody()),
     400,
-    "PROFESSIONAL_SERVICE_NOT_ALLOWED",
+    "PROFESSIONAL_SERVICE_NOT_AVAILABLE",
+  );
+});
+
+test("business appointment create rechaza horario pasado en America/Santiago", async () => {
+  const { service } = serviceWithMocks();
+
+  await rejectsWithCode(
+    () => service.createAppointment(tenantContext(), validBody({
+      startAt: "2026-06-27T10:00:00.000Z",
+    })),
+    400,
+    "APPOINTMENT_SLOT_IN_PAST",
+  );
+});
+
+test("business appointment create rechaza horario fuera del negocio", async () => {
+  const { service } = serviceWithMocks({
+    businessHours: [
+      {
+        weekday: "WEDNESDAY",
+        opensAtLocal: "09:00",
+        closesAtLocal: "10:00",
+      },
+    ],
+  });
+
+  await rejectsWithCode(
+    () => service.createAppointment(tenantContext(), validBody()),
+    400,
+    "APPOINTMENT_OUTSIDE_BUSINESS_HOURS",
+  );
+});
+
+test("business appointment create rechaza horario fuera de disponibilidad profesional", async () => {
+  const { service } = serviceWithMocks({
+    professionalAvailabilityRules: [
+      {
+        weekday: "WEDNESDAY",
+        startsAtLocal: "09:00",
+        endsAtLocal: "10:00",
+      },
+    ],
+  });
+
+  await rejectsWithCode(
+    () => service.createAppointment(tenantContext(), validBody()),
+    400,
+    "APPOINTMENT_OUTSIDE_PROFESSIONAL_AVAILABILITY",
+  );
+});
+
+test("business appointment create rechaza horario bloqueado por TimeOff", async () => {
+  const { service } = serviceWithMocks({
+    timeOff: {
+      id: "time-off-1",
+    },
+  });
+
+  await rejectsWithCode(
+    () => service.createAppointment(tenantContext(), validBody()),
+    400,
+    "APPOINTMENT_SLOT_BLOCKED",
+  );
+});
+
+test("business appointment create rechaza colision con AppointmentSegment existente", async () => {
+  const { service } = serviceWithMocks({
+    overlappingSegment: {
+      id: "appointment-segment-existing-1",
+    },
+  });
+
+  await rejectsWithCode(
+    () => service.createAppointment(tenantContext(), validBody()),
+    400,
+    "APPOINTMENT_SLOT_ALREADY_TAKEN",
   );
 });
 
