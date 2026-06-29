@@ -48,6 +48,7 @@ export function AdminNewAppointmentPanel({ form }: { form?: AdminAppointmentForm
   const [isOpen, setIsOpen] = useState(false);
   const [formState, setFormState] = useState<FormState>(initialFormState);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   if (!form) {
@@ -64,24 +65,33 @@ export function AdminNewAppointmentPanel({ form }: { form?: AdminAppointmentForm
   }
 
   return <div>
-    <button className="button" type="button" onClick={() => setIsOpen(true)}>Nueva cita</button>
-    {message && <small style={{ display: "block", marginTop: 8, color: message.type === "success" ? "#397052" : "#925650" }}>{message.text}</small>}
+    <button className="button" type="button" onClick={() => {
+      setDialogError(null);
+      setIsOpen(true);
+    }}>Nueva cita</button>
+    {message && message.type === "success" && <small style={{ display: "block", marginTop: 8, color: "#397052" }}>{message.text}</small>}
     {isOpen && <AppointmentFormDialog
       data={form.data}
+      errorMessage={dialogError}
       formState={formState}
       isPending={isPending}
       onChange={(patch) => {
         setFormState((current) => ({ ...current, ...patch }));
+        setDialogError(null);
         setMessage(null);
       }}
-      onClose={() => setIsOpen(false)}
+      onClose={() => {
+        setDialogError(null);
+        setIsOpen(false);
+      }}
       onSubmit={(error) => {
         if (error) {
-          setMessage({ type: "error", text: error });
+          setDialogError(error);
           return;
         }
 
         startTransition(async () => {
+          setDialogError(null);
           const result = await createAdminAppointmentAction({
             businessSlug: form.data.businessSlug,
             ...formState,
@@ -95,7 +105,7 @@ export function AdminNewAppointmentPanel({ form }: { form?: AdminAppointmentForm
             return;
           }
 
-          setMessage({ type: "error", text: result.message });
+          setDialogError(result.message);
         });
       }}
     />}
@@ -111,6 +121,7 @@ function UnavailableAppointmentButton({ message }: { message: string }) {
 
 function AppointmentFormDialog({
   data,
+  errorMessage,
   formState,
   isPending,
   onChange,
@@ -118,6 +129,7 @@ function AppointmentFormDialog({
   onSubmit,
 }: {
   data: AdminAppointmentFormData;
+  errorMessage?: string | null;
   formState: FormState;
   isPending: boolean;
   onChange: (patch: Partial<FormState>) => void;
@@ -211,6 +223,9 @@ function AppointmentFormDialog({
           : null}
         {formState.professionalId && compatibleLocations.length === 0
           ? <Notice title="Sin ubicaciones disponibles" message="El profesional seleccionado no tiene ubicaciones activas."/>
+          : null}
+        {errorMessage
+          ? <Notice title="No se pudo crear la cita" message={errorMessage}/>
           : null}
         <div className="button-row" style={{ justifyContent: "flex-end", marginTop: 18 }}>
           <button className="button button--ghost" type="button" onClick={onClose} disabled={isPending}>Cerrar</button>

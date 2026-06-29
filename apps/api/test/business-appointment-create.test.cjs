@@ -162,6 +162,12 @@ function serviceWithMocks(options = {}) {
     timeOff: Object.prototype.hasOwnProperty.call(options, "timeOff")
       ? options.timeOff
       : null,
+    overlappingCustomerAppointment: Object.prototype.hasOwnProperty.call(
+      options,
+      "overlappingCustomerAppointment",
+    )
+      ? options.overlappingCustomerAppointment
+      : null,
     overlappingSegment: Object.prototype.hasOwnProperty.call(options, "overlappingSegment")
       ? options.overlappingSegment
       : null,
@@ -223,6 +229,10 @@ function serviceWithMocks(options = {}) {
       },
     },
     appointment: {
+      findFirst: async (query) => {
+        calls.customerOverlap = query;
+        return rows.overlappingCustomerAppointment;
+      },
       create: async (query) => {
         calls.appointmentCreate = query;
         return { id: createdAppointmentId };
@@ -352,6 +362,7 @@ test("business appointment create usa businessId desde TenantContext en lecturas
   assert.equal(calls.services.where.businessId, "business-tenant-1");
   assert.equal(calls.professional.where.businessId, "business-tenant-1");
   assert.equal(calls.professionalServices.where.businessId, "business-tenant-1");
+  assert.equal(calls.customerOverlap.where.businessId, "business-tenant-1");
   assert.equal(calls.businessHours.where.businessId, "business-tenant-1");
   assert.equal(calls.professionalAvailabilityRules.where.businessId, "business-tenant-1");
   assert.equal(calls.timeOff.where.businessId, "business-tenant-1");
@@ -391,6 +402,9 @@ test("business appointment create selecciona campos minimos para validar entidad
   });
   assert.deepEqual(calls.professionalServices.select, {
     serviceId: true,
+  });
+  assert.deepEqual(calls.customerOverlap.select, {
+    id: true,
   });
 });
 
@@ -506,6 +520,69 @@ test("business appointment create rechaza horario bloqueado por TimeOff", async 
     400,
     "APPOINTMENT_SLOT_BLOCKED",
   );
+});
+
+test("business appointment create permite cita valida cuando cliente no tiene solape", async () => {
+  const { service, calls } = serviceWithMocks();
+
+  await service.createAppointment(tenantContext(), validBody());
+
+  assert.equal(calls.customerOverlap.where.customerId, "customer-1");
+  assert.equal(calls.appointmentCreate.data.customerId, "customer-1");
+});
+
+test("business appointment create rechaza solape activo del mismo customerId", async () => {
+  const { service, calls } = serviceWithMocks({
+    overlappingCustomerAppointment: {
+      id: "appointment-existing-1",
+    },
+  });
+
+  await rejectsWithCode(
+    () => service.createAppointment(tenantContext(), validBody()),
+    400,
+    "APPOINTMENT_CUSTOMER_OVERLAP",
+  );
+
+  assert.equal(calls.appointmentCreate, undefined);
+  assert.deepEqual(calls.appointmentServices, []);
+  assert.deepEqual(calls.appointmentSegments, []);
+  assert.equal(calls.statusHistoryCreate, undefined);
+  assert.equal(calls.appointmentSegmentCollision, undefined);
+});
+
+test("business appointment create permite mismo rango para otro cliente si profesional esta disponible", async () => {
+  const { service, calls } = serviceWithMocks();
+
+  await service.createAppointment(
+    tenantContext(),
+    validBody({ customerId: "customer-2" }),
+  );
+
+  assert.equal(calls.customerOverlap.where.customerId, "customer-2");
+  assert.equal(calls.appointmentCreate.data.customerId, "customer-2");
+});
+
+test("business appointment create consulta solape cliente con estados activos y rango real", async () => {
+  const { service, calls } = serviceWithMocks();
+
+  await service.createAppointment(tenantContext(), validBody());
+
+  assert.deepEqual(calls.customerOverlap.where.status, {
+    in: ["PENDING", "CONFIRMED", "IN_PROGRESS"],
+  });
+  assert.equal(calls.customerOverlap.where.startAt.lt.getTime(), new Date("2026-07-01T15:00:00.000Z").getTime());
+  assert.equal(calls.customerOverlap.where.endAt.gt.getTime(), new Date("2026-07-01T14:00:00.000Z").getTime());
+});
+
+test("business appointment create no consulta estados cerrados como bloqueantes de cliente", async () => {
+  const { service, calls } = serviceWithMocks();
+
+  await service.createAppointment(tenantContext(), validBody());
+
+  assert.equal(calls.customerOverlap.where.status.in.includes("COMPLETED"), false);
+  assert.equal(calls.customerOverlap.where.status.in.includes("CANCELLED"), false);
+  assert.equal(calls.customerOverlap.where.status.in.includes("NO_SHOW"), false);
 });
 
 test("business appointment create rechaza colision con AppointmentSegment existente", async () => {

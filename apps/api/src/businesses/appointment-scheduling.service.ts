@@ -1,9 +1,15 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
+import type { AppointmentStatus as PrismaAppointmentStatus } from "@velora/database";
 
 import type { PrismaTransaction } from "../common/database/prisma-transaction";
 
 const DEFAULT_TIME_ZONE = "America/Santiago";
 const MINUTES_PER_HOUR = 60;
+const CUSTOMER_BLOCKING_APPOINTMENT_STATUSES: PrismaAppointmentStatus[] = [
+  "PENDING",
+  "CONFIRMED",
+  "IN_PROGRESS",
+];
 
 type Weekday =
   | "MONDAY"
@@ -21,6 +27,13 @@ interface AppointmentSchedulingInput {
   startAt: Date;
   endAt: Date;
   timezone?: string | null;
+}
+
+interface CustomerSchedulingInput {
+  businessId: string;
+  customerId: string;
+  startAt: Date;
+  endAt: Date;
 }
 
 interface LocalDateTime {
@@ -53,6 +66,37 @@ const WEEKDAY_BY_SHORT_LABEL: Record<string, Weekday> = {
 
 @Injectable()
 export class AppointmentSchedulingService {
+  async assertCustomerCanSchedule(
+    transaction: PrismaTransaction,
+    input: CustomerSchedulingInput,
+  ): Promise<void> {
+    const overlappingCustomerAppointment = await transaction.appointment.findFirst({
+      where: {
+        businessId: input.businessId,
+        customerId: input.customerId,
+        status: {
+          in: CUSTOMER_BLOCKING_APPOINTMENT_STATUSES,
+        },
+        startAt: {
+          lt: input.endAt,
+        },
+        endAt: {
+          gt: input.startAt,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (overlappingCustomerAppointment) {
+      throw new BadRequestException({
+        code: "APPOINTMENT_CUSTOMER_OVERLAP",
+        message: "El cliente ya tiene una cita en ese horario.",
+      });
+    }
+  }
+
   async assertCanSchedule(
     transaction: PrismaTransaction,
     input: AppointmentSchedulingInput,

@@ -175,6 +175,13 @@ export class BusinessAppointmentCreateService {
         input.startAt.getTime() + (totalDurationMinutes * MILLISECONDS_PER_MINUTE),
       );
 
+      await this.scheduling.assertCustomerCanSchedule(transaction, {
+        businessId: tenant.businessId,
+        customerId: input.customerId,
+        startAt: input.startAt,
+        endAt,
+      });
+
       if (input.professionalId) {
         await this.scheduling.assertCanSchedule(transaction, {
           businessId: tenant.businessId,

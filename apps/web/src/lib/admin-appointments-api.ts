@@ -434,6 +434,7 @@ function mapCreateAppointmentError(code: string): string {
     APPOINTMENT_OUTSIDE_PROFESSIONAL_AVAILABILITY: "El profesional no esta disponible en ese horario.",
     APPOINTMENT_SLOT_BLOCKED: "Ese horario esta bloqueado. Elige otro.",
     APPOINTMENT_SLOT_ALREADY_TAKEN: "Ese horario ya fue reservado. Elige otro.",
+    APPOINTMENT_CUSTOMER_OVERLAP: "El cliente ya tiene una cita en ese horario. Elige otro horario o revisa su agenda.",
     LOCATION_NOT_FOUND: "La ubicacion seleccionada no esta disponible.",
     CUSTOMER_NOT_FOUND: "El cliente seleccionado no existe.",
     SERVICE_NOT_FOUND: "El servicio seleccionado no existe.",
