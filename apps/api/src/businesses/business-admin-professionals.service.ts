@@ -25,6 +25,8 @@ export interface AdminProfessionalCreateRequest {
   email?: string | null;
   status?: string;
   sortOrder?: number;
+  serviceIds?: string[];
+  locationIds?: string[];
 }
 
 export interface AdminProfessionalUpdateRequest {
@@ -36,6 +38,8 @@ export interface AdminProfessionalUpdateRequest {
   email?: string | null;
   status?: string;
   sortOrder?: number;
+  serviceIds?: string[];
+  locationIds?: string[];
 }
 
 export interface AdminProfessionalServicesReplaceRequest {
@@ -91,9 +95,11 @@ export class BusinessAdminProfessionalsService {
   ) {
     this.assertTenantSlug(tenant, businessSlug);
     const input = this.validateCreateInput(body);
+    const assignments = this.validateOptionalAssignments(body);
 
     return this.transactions.runInTransaction(async (transaction) => {
       await this.assertSlugAvailable(transaction, tenant.businessId, input.slug);
+      await this.assertOptionalAssignmentsAvailable(transaction, tenant.businessId, assignments);
 
       const created = await transaction.professional.create({
         data: {
@@ -112,6 +118,23 @@ export class BusinessAdminProfessionalsService {
         },
       });
 
+      if (assignments.serviceIds !== undefined) {
+        await this.writeProfessionalServices(
+          transaction,
+          tenant.businessId,
+          created.id,
+          assignments.serviceIds,
+        );
+      }
+      if (assignments.locationIds !== undefined) {
+        await this.writeProfessionalLocations(
+          transaction,
+          tenant.businessId,
+          created.id,
+          assignments.locationIds,
+        );
+      }
+
       return this.getProfessionalResponse(transaction, tenant.businessId, created.id);
     });
   }
@@ -124,6 +147,13 @@ export class BusinessAdminProfessionalsService {
   ) {
     this.assertTenantSlug(tenant, businessSlug);
     const input = this.validateUpdateInput(body);
+    const assignments = this.validateOptionalAssignments(body);
+    const hasProfessionalInput = Object.keys(input).length > 0;
+    const hasAssignmentInput = assignments.serviceIds !== undefined
+      || assignments.locationIds !== undefined;
+    if (!hasProfessionalInput && !hasAssignmentInput) {
+      throw this.invalidInput();
+    }
 
     return this.transactions.runInTransaction(async (transaction) => {
       const existing = await this.getExistingProfessional(
@@ -135,17 +165,37 @@ export class BusinessAdminProfessionalsService {
       if (typeof input.slug === "string" && input.slug !== existing.slug) {
         await this.assertSlugAvailable(transaction, tenant.businessId, input.slug, existing.id);
       }
+      await this.assertOptionalAssignmentsAvailable(transaction, tenant.businessId, assignments);
 
-      const updated = await transaction.professional.updateMany({
-        where: {
-          id: professionalId,
-          businessId: tenant.businessId,
-        },
-        data: input,
-      });
+      if (hasProfessionalInput) {
+        const updated = await transaction.professional.updateMany({
+          where: {
+            id: professionalId,
+            businessId: tenant.businessId,
+          },
+          data: input,
+        });
 
-      if (updated.count !== 1) {
-        throw this.professionalNotFound();
+        if (updated.count !== 1) {
+          throw this.professionalNotFound();
+        }
+      }
+
+      if (assignments.serviceIds !== undefined) {
+        await this.writeProfessionalServices(
+          transaction,
+          tenant.businessId,
+          professionalId,
+          assignments.serviceIds,
+        );
+      }
+      if (assignments.locationIds !== undefined) {
+        await this.writeProfessionalLocations(
+          transaction,
+          tenant.businessId,
+          professionalId,
+          assignments.locationIds,
+        );
       }
 
       return this.getProfessionalResponse(transaction, tenant.businessId, professionalId);
@@ -164,54 +214,7 @@ export class BusinessAdminProfessionalsService {
     return this.transactions.runInTransaction(async (transaction) => {
       await this.getExistingProfessional(transaction, tenant.businessId, professionalId);
       await this.assertServicesAvailable(transaction, tenant.businessId, serviceIds);
-
-      await transaction.professionalService.updateMany({
-        where: {
-          businessId: tenant.businessId,
-          professionalId,
-          status: "ACTIVE",
-          serviceId: {
-            notIn: serviceIds,
-          },
-        },
-        data: {
-          status: "INACTIVE",
-        },
-      });
-
-      for (const serviceId of serviceIds) {
-        const existing = await transaction.professionalService.findFirst({
-          where: {
-            businessId: tenant.businessId,
-            professionalId,
-            serviceId,
-          },
-          select: {
-            id: true,
-          },
-        });
-
-        if (existing) {
-          await transaction.professionalService.updateMany({
-            where: {
-              id: existing.id,
-              businessId: tenant.businessId,
-            },
-            data: {
-              status: "ACTIVE",
-            },
-          });
-        } else {
-          await transaction.professionalService.create({
-            data: {
-              businessId: tenant.businessId,
-              professionalId,
-              serviceId,
-              status: "ACTIVE",
-            },
-          });
-        }
-      }
+      await this.writeProfessionalServices(transaction, tenant.businessId, professionalId, serviceIds);
 
       return this.getProfessionalResponse(transaction, tenant.businessId, professionalId);
     });
@@ -229,57 +232,120 @@ export class BusinessAdminProfessionalsService {
     return this.transactions.runInTransaction(async (transaction) => {
       await this.getExistingProfessional(transaction, tenant.businessId, professionalId);
       await this.assertLocationsAvailable(transaction, tenant.businessId, locationIds);
-
-      await transaction.professionalLocation.updateMany({
-        where: {
-          businessId: tenant.businessId,
-          professionalId,
-          status: "ACTIVE",
-          locationId: {
-            notIn: locationIds,
-          },
-        },
-        data: {
-          status: "INACTIVE",
-        },
-      });
-
-      for (const locationId of locationIds) {
-        const existing = await transaction.professionalLocation.findFirst({
-          where: {
-            businessId: tenant.businessId,
-            professionalId,
-            locationId,
-          },
-          select: {
-            id: true,
-          },
-        });
-
-        if (existing) {
-          await transaction.professionalLocation.updateMany({
-            where: {
-              id: existing.id,
-              businessId: tenant.businessId,
-            },
-            data: {
-              status: "ACTIVE",
-            },
-          });
-        } else {
-          await transaction.professionalLocation.create({
-            data: {
-              businessId: tenant.businessId,
-              professionalId,
-              locationId,
-              status: "ACTIVE",
-            },
-          });
-        }
-      }
+      await this.writeProfessionalLocations(transaction, tenant.businessId, professionalId, locationIds);
 
       return this.getProfessionalResponse(transaction, tenant.businessId, professionalId);
     });
+  }
+
+  private async writeProfessionalServices(
+    transaction: PrismaTransaction,
+    businessId: string,
+    professionalId: string,
+    serviceIds: string[],
+  ) {
+    await transaction.professionalService.updateMany({
+      where: {
+        businessId,
+        professionalId,
+        status: "ACTIVE",
+        serviceId: {
+          notIn: serviceIds,
+        },
+      },
+      data: {
+        status: "INACTIVE",
+      },
+    });
+
+    for (const serviceId of serviceIds) {
+      const existing = await transaction.professionalService.findFirst({
+        where: {
+          businessId,
+          professionalId,
+          serviceId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (existing) {
+        await transaction.professionalService.updateMany({
+          where: {
+            id: existing.id,
+            businessId,
+          },
+          data: {
+            status: "ACTIVE",
+          },
+        });
+      } else {
+        await transaction.professionalService.create({
+          data: {
+            businessId,
+            professionalId,
+            serviceId,
+            status: "ACTIVE",
+          },
+        });
+      }
+    }
+  }
+
+  private async writeProfessionalLocations(
+    transaction: PrismaTransaction,
+    businessId: string,
+    professionalId: string,
+    locationIds: string[],
+  ) {
+    await transaction.professionalLocation.updateMany({
+      where: {
+        businessId,
+        professionalId,
+        status: "ACTIVE",
+        locationId: {
+          notIn: locationIds,
+        },
+      },
+      data: {
+        status: "INACTIVE",
+      },
+    });
+
+    for (const locationId of locationIds) {
+      const existing = await transaction.professionalLocation.findFirst({
+        where: {
+          businessId,
+          professionalId,
+          locationId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (existing) {
+        await transaction.professionalLocation.updateMany({
+          where: {
+            id: existing.id,
+            businessId,
+          },
+          data: {
+            status: "ACTIVE",
+          },
+        });
+      } else {
+        await transaction.professionalLocation.create({
+          data: {
+            businessId,
+            professionalId,
+            locationId,
+            status: "ACTIVE",
+          },
+        });
+      }
+    }
   }
 
   private async getExistingProfessional(
@@ -478,6 +544,22 @@ export class BusinessAdminProfessionalsService {
     }
   }
 
+  private async assertOptionalAssignmentsAvailable(
+    transaction: PrismaTransaction,
+    businessId: string,
+    assignments: {
+      serviceIds?: string[];
+      locationIds?: string[];
+    },
+  ) {
+    if (assignments.serviceIds !== undefined) {
+      await this.assertServicesAvailable(transaction, businessId, assignments.serviceIds);
+    }
+    if (assignments.locationIds !== undefined) {
+      await this.assertLocationsAvailable(transaction, businessId, assignments.locationIds);
+    }
+  }
+
   private validateCreateInput(body: AdminProfessionalCreateRequest) {
     if (!body || typeof body !== "object") {
       throw this.invalidInput();
@@ -528,10 +610,6 @@ export class BusinessAdminProfessionalsService {
       input.sortOrder = this.integer(body.sortOrder);
     }
 
-    if (Object.keys(input).length === 0) {
-      throw this.invalidInput();
-    }
-
     return input;
   }
 
@@ -556,6 +634,22 @@ export class BusinessAdminProfessionalsService {
     }
 
     return body.serviceIds.map((serviceId) => serviceId.trim());
+  }
+
+  private validateOptionalAssignments(
+    body: AdminProfessionalCreateRequest | AdminProfessionalUpdateRequest,
+  ): {
+    serviceIds?: string[];
+    locationIds?: string[];
+  } {
+    return {
+      ...(body.serviceIds !== undefined
+        ? { serviceIds: this.validateServiceIdsInput({ serviceIds: body.serviceIds }) }
+        : {}),
+      ...(body.locationIds !== undefined
+        ? { locationIds: this.validateLocationIdsInput({ locationIds: body.locationIds }) }
+        : {}),
+    };
   }
 
   private validateLocationIdsInput(body: AdminProfessionalLocationsReplaceRequest): string[] {

@@ -101,6 +101,24 @@ function validateProfessionalInput(input: AdminProfessionalMutationInput):
   if (!isAdminProfessionalStatus(input.status)) {
     return invalidInput("Selecciona un estado valido.");
   }
+  const serviceIds = validateOptionalIdList(
+    input.serviceIds,
+    "ADMIN_PROFESSIONAL_SERVICES_DUPLICATED",
+    "No repitas servicios para el mismo profesional.",
+    "Revisa los servicios asignados.",
+  );
+  if (!serviceIds.ok) {
+    return serviceIds;
+  }
+  const locationIds = validateOptionalIdList(
+    input.locationIds,
+    "ADMIN_PROFESSIONAL_LOCATIONS_DUPLICATED",
+    "No repitas sucursales para el mismo profesional.",
+    "Revisa las sucursales asignadas.",
+  );
+  if (!locationIds.ok) {
+    return locationIds;
+  }
 
   return {
     ok: true,
@@ -112,6 +130,8 @@ function validateProfessionalInput(input: AdminProfessionalMutationInput):
       ...(input.phone !== undefined ? { phone: normalizeOptionalString(input.phone) } : {}),
       ...(input.email !== undefined ? { email: normalizeOptionalString(input.email) } : {}),
       status: input.status,
+      ...(serviceIds.ids !== undefined ? { serviceIds: serviceIds.ids } : {}),
+      ...(locationIds.ids !== undefined ? { locationIds: locationIds.ids } : {}),
     },
   };
 }
@@ -203,6 +223,34 @@ function normalizeOptionalString(value: unknown): string | null {
 
   const normalized = value.trim();
   return normalized.length > 0 ? normalized : null;
+}
+
+function validateOptionalIdList(
+  value: unknown,
+  duplicateCode: string,
+  duplicateMessage: string,
+  invalidMessage: string,
+):
+  | { ok: true; ids?: string[] }
+  | { ok: false; code: string; message: string } {
+  if (value === undefined) {
+    return { ok: true };
+  }
+
+  if (!Array.isArray(value) || !value.every(isNonEmptyString)) {
+    return invalidInput(invalidMessage);
+  }
+
+  const ids = value.map((item) => item.trim());
+  if (new Set(ids).size !== ids.length) {
+    return {
+      ok: false,
+      code: duplicateCode,
+      message: duplicateMessage,
+    };
+  }
+
+  return { ok: true, ids };
 }
 
 function isAdminProfessionalStatus(value: unknown): value is AdminProfessionalStatus {

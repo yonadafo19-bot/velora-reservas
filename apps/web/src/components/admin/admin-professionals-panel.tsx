@@ -6,8 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   createAdminProfessionalAction,
   updateAdminProfessionalAction,
-  updateAdminProfessionalLocationsAction,
-  updateAdminProfessionalServicesAction,
 } from "@/app/admin/profesionales/actions";
 import type {
   AdminProfessional,
@@ -123,28 +121,6 @@ function ConnectedProfessionalsPanel({
 
       if (!professionalResult.ok) {
         setMessage({ type: "error", text: professionalResult.message });
-        return;
-      }
-
-      const servicesResult = await updateAdminProfessionalServicesAction({
-        businessSlug,
-        professionalId: professionalResult.professional.id,
-        serviceIds: formState.serviceIds,
-      });
-
-      if (!servicesResult.ok) {
-        setMessage({ type: "error", text: servicesResult.message });
-        return;
-      }
-
-      const locationsResult = await updateAdminProfessionalLocationsAction({
-        businessSlug,
-        professionalId: professionalResult.professional.id,
-        locationIds: formState.locationIds,
-      });
-
-      if (!locationsResult.ok) {
-        setMessage({ type: "error", text: locationsResult.message });
         return;
       }
 
@@ -381,6 +357,8 @@ function toProfessionalActionInput(
       ...(formState.phone.trim() ? { phone: formState.phone } : {}),
       ...(formState.email.trim() ? { email: formState.email } : {}),
       status: formState.status,
+      serviceIds: formState.serviceIds,
+      locationIds: formState.locationIds,
     },
   };
 }

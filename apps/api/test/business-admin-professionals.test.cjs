@@ -217,6 +217,118 @@ test("business admin professionals crea profesional valido tenant-safe", async (
   ]);
 });
 
+test("business admin professionals crea profesional compuesto con servicios y ubicaciones barberia", async () => {
+  const { service, calls } = serviceWithMocks();
+
+  const response = await service.createProfessional(
+    tenantContext(),
+    "velora-barberia-demo",
+    {
+      displayName: " Matias Rojas ",
+      roleTitle: " Barbero senior ",
+      status: "ACTIVE",
+      serviceIds: ["service-1"],
+      locationIds: ["location-1"],
+    },
+  );
+
+  assert.equal(calls.transactionStarted, true);
+  assert.deepEqual(calls.serviceFindMany.where, {
+    businessId: "business-tenant-1",
+    id: {
+      in: ["service-1"],
+    },
+    status: "ACTIVE",
+  });
+  assert.deepEqual(calls.locationFindMany.where, {
+    businessId: "business-tenant-1",
+    id: {
+      in: ["location-1"],
+    },
+    status: "ACTIVE",
+  });
+  assert.deepEqual(calls.professionalServiceCreate[0].data, {
+    businessId: "business-tenant-1",
+    professionalId: "professional-1",
+    serviceId: "service-1",
+    status: "ACTIVE",
+  });
+  assert.deepEqual(calls.professionalLocationCreate[0].data, {
+    businessId: "business-tenant-1",
+    professionalId: "professional-1",
+    locationId: "location-1",
+    status: "ACTIVE",
+  });
+  assert.equal(response.services.length, 1);
+  assert.equal(response.locations.length, 1);
+});
+
+test("business admin professionals crea profesional compuesto para belleza tenant-safe", async () => {
+  const { service, calls } = serviceWithMocks({
+    services: [{ id: "beauty-service-1" }],
+    locations: [{ id: "beauty-location-1" }],
+    response: professionalRow({
+      id: "beauty-professional-1",
+      slug: "sofia-araya",
+      displayName: "Sofia Araya",
+      roleTitle: "Nail artist",
+      services: [
+        {
+          service: {
+            id: "beauty-service-1",
+            name: "Manicure spa",
+          },
+        },
+      ],
+      locations: [
+        {
+          location: {
+            id: "beauty-location-1",
+            slug: "las-condes-demo",
+            name: "Sucursal Las Condes Demo",
+            addressLine: "Av. Apoquindo 1000",
+            city: "Santiago",
+            status: "ACTIVE",
+          },
+        },
+      ],
+    }),
+  });
+
+  const response = await service.createProfessional(
+    tenantContext({
+      businessId: "seed-beauty-business-main",
+      businessSlug: "velora-beauty-studio-demo",
+      businessName: "Velora Beauty Studio Demo",
+      businessVertical: "BEAUTY_STUDIO",
+    }),
+    "velora-beauty-studio-demo",
+    {
+      displayName: " Sofia Araya ",
+      roleTitle: " Nail artist ",
+      status: "ACTIVE",
+      serviceIds: ["beauty-service-1"],
+      locationIds: ["beauty-location-1"],
+    },
+  );
+
+  assert.equal(calls.professionalCreate.data.businessId, "seed-beauty-business-main");
+  assert.deepEqual(calls.professionalServiceCreate[0].data, {
+    businessId: "seed-beauty-business-main",
+    professionalId: "professional-1",
+    serviceId: "beauty-service-1",
+    status: "ACTIVE",
+  });
+  assert.deepEqual(calls.professionalLocationCreate[0].data, {
+    businessId: "seed-beauty-business-main",
+    professionalId: "professional-1",
+    locationId: "beauty-location-1",
+    status: "ACTIVE",
+  });
+  assert.deepEqual(response.services, [{ id: "beauty-service-1", name: "Manicure spa" }]);
+  assert.equal(response.locations[0].id, "beauty-location-1");
+});
+
 test("business admin professionals lista ubicaciones activas tenant-safe", async () => {
   const { service, calls } = serviceWithMocks();
 
@@ -266,6 +378,71 @@ test("business admin professionals actualiza profesional del mismo tenant", asyn
   assert.equal(response.roleTitle, "Colorista");
 });
 
+test("business admin professionals actualiza profesional compuesto en una transaccion", async () => {
+  const { service, calls } = serviceWithMocks();
+
+  const response = await service.updateProfessional(
+    tenantContext(),
+    "velora-barberia-demo",
+    "professional-1",
+    {
+      displayName: "Matias Rojas",
+      roleTitle: "Colorista",
+      status: "ACTIVE",
+      serviceIds: ["service-1"],
+      locationIds: ["location-1"],
+    },
+  );
+
+  assert.deepEqual(calls.professionalUpdateMany[0].data, {
+    displayName: "Matias Rojas",
+    roleTitle: "Colorista",
+    status: "ACTIVE",
+  });
+  assert.deepEqual(calls.professionalServiceCreate[0].data, {
+    businessId: "business-tenant-1",
+    professionalId: "professional-1",
+    serviceId: "service-1",
+    status: "ACTIVE",
+  });
+  assert.deepEqual(calls.professionalLocationCreate[0].data, {
+    businessId: "business-tenant-1",
+    professionalId: "professional-1",
+    locationId: "location-1",
+    status: "ACTIVE",
+  });
+  assert.equal(response.id, "professional-1");
+});
+
+test("business admin professionals permite update compuesto solo de asignaciones", async () => {
+  const { service, calls } = serviceWithMocks();
+
+  const response = await service.updateProfessional(
+    tenantContext(),
+    "velora-barberia-demo",
+    "professional-1",
+    {
+      serviceIds: ["service-1"],
+      locationIds: ["location-1"],
+    },
+  );
+
+  assert.deepEqual(calls.professionalUpdateMany, []);
+  assert.deepEqual(calls.professionalServiceCreate[0].data, {
+    businessId: "business-tenant-1",
+    professionalId: "professional-1",
+    serviceId: "service-1",
+    status: "ACTIVE",
+  });
+  assert.deepEqual(calls.professionalLocationCreate[0].data, {
+    businessId: "business-tenant-1",
+    professionalId: "professional-1",
+    locationId: "location-1",
+    status: "ACTIVE",
+  });
+  assert.equal(response.id, "professional-1");
+});
+
 test("business admin professionals rechaza update cross-tenant", async () => {
   const { service } = serviceWithMocks({ existingProfessional: null });
 
@@ -304,6 +481,42 @@ test("business admin professionals rechaza slug duplicado", async () => {
     400,
     "ADMIN_PROFESSIONAL_SLUG_DUPLICATED",
   );
+});
+
+test("business admin professionals rechaza create compuesto con servicio invalido sin crear parcial", async () => {
+  const { service, calls } = serviceWithMocks({ services: [] });
+
+  await rejectsWithCode(
+    () => service.createProfessional(tenantContext(), "velora-barberia-demo", {
+      displayName: "Matias Rojas",
+      serviceIds: ["service-other-tenant"],
+      locationIds: ["location-1"],
+    }),
+    400,
+    "ADMIN_PROFESSIONAL_SERVICE_INVALID",
+  );
+
+  assert.equal(calls.professionalCreate, undefined);
+  assert.deepEqual(calls.professionalServiceCreate, []);
+  assert.deepEqual(calls.professionalLocationCreate, []);
+});
+
+test("business admin professionals rechaza create compuesto con ubicacion invalida sin crear parcial", async () => {
+  const { service, calls } = serviceWithMocks({ locations: [] });
+
+  await rejectsWithCode(
+    () => service.createProfessional(tenantContext(), "velora-barberia-demo", {
+      displayName: "Matias Rojas",
+      serviceIds: ["service-1"],
+      locationIds: ["location-other-tenant"],
+    }),
+    400,
+    "ADMIN_PROFESSIONAL_LOCATION_INVALID",
+  );
+
+  assert.equal(calls.professionalCreate, undefined);
+  assert.deepEqual(calls.professionalServiceCreate, []);
+  assert.deepEqual(calls.professionalLocationCreate, []);
 });
 
 test("business admin professionals asocia servicios validos", async () => {

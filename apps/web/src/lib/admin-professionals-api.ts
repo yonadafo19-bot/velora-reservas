@@ -51,6 +51,8 @@ export interface AdminProfessionalMutationInput {
   phone?: string | null;
   email?: string | null;
   status: AdminProfessionalStatus;
+  serviceIds?: string[];
+  locationIds?: string[];
 }
 
 export interface AdminProfessionalServicesInput {
@@ -322,6 +324,12 @@ function toProfessionalPayload(input: AdminProfessionalMutationInput) {
 
   if (input.email !== undefined) {
     payload.email = input.email;
+  }
+  if (input.serviceIds !== undefined) {
+    payload.serviceIds = input.serviceIds;
+  }
+  if (input.locationIds !== undefined) {
+    payload.locationIds = input.locationIds;
   }
 
   return payload;
