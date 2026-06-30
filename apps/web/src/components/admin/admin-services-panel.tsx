@@ -151,7 +151,7 @@ function ConnectedServicesPanel({
         onSubmit={submit}
       />
 
-      {message && <div className="demo-notice" style={{ marginTop: 14, background: message.type === "success" ? "#e5f1e9" : "#f5e7e6" }}>
+      {message && <div className={`admin-message admin-message--${message.type}`} style={{ marginTop: 14 }}>
         <span><strong>{message.type === "success" ? "Guardado" : "No se pudo guardar"}</strong>{message.text}</span>
       </div>}
     </section>
@@ -164,7 +164,7 @@ function ConnectedServicesPanel({
         </div>
       </div>
       {services.length === 0
-        ? <div className="demo-notice"><span><strong>Catalogo vacio</strong>Crea el primer servicio para que pueda usarse en la agenda.</span></div>
+        ? <div className="admin-message admin-message--info"><span><strong>Catalogo vacio</strong>Crea el primer servicio para que pueda usarse en la agenda.</span></div>
         : <div className="admin-card-grid">{services.map((service) => <ServiceCard
           key={service.id}
           service={service}
@@ -227,7 +227,7 @@ function ServiceForm({
     event.preventDefault();
     onSubmit();
   }}>
-    <div className="form-grid">
+    <div className="admin-field-grid">
       <label>Nombre<input value={value.name} onChange={(event) => onChange({ name: event.target.value })} placeholder="Ej. Corte clasico"/></label>
       <label>Estado<select value={value.status} onChange={(event) => onChange({ status: event.target.value as AdminServiceStatus })}><option value="ACTIVE">Activo</option><option value="INACTIVE">Inactivo</option><option value="ARCHIVED">Archivado</option></select></label>
       <label className="full">Descripcion<input value={value.description} onChange={(event) => onChange({ description: event.target.value })} placeholder="Detalle breve del servicio"/></label>
@@ -236,7 +236,7 @@ function ServiceForm({
       <label>Buffer antes<input value={value.bufferBeforeMinutes} inputMode="numeric" onChange={(event) => onChange({ bufferBeforeMinutes: event.target.value })}/></label>
       <label>Buffer despues<input value={value.bufferAfterMinutes} inputMode="numeric" onChange={(event) => onChange({ bufferAfterMinutes: event.target.value })}/></label>
     </div>
-    <div className="button-row" style={{ justifyContent: "flex-end", marginTop: 18 }}>
+    <div className="admin-action-row">
       <button className="button button--ghost" type="button" onClick={onCancel} disabled={isPending}>Limpiar</button>
       <button className="button" type="submit" disabled={isPending}>{isPending ? "Guardando..." : value.serviceId ? "Guardar cambios" : "Crear servicio"}</button>
     </div>
@@ -256,7 +256,7 @@ function ServiceCard({
   onEdit: () => void;
   onStatusChange: (status: AdminServiceStatus) => void;
 }) {
-  return <article className="catalog-card" style={isSelected ? { outline: "2px solid rgba(58, 73, 45, .32)" } : undefined}>
+  return <article className={`catalog-card ${isSelected ? "is-selected" : ""}`}>
     <div>
       <span className="catalog-icon">{service.name.slice(0, 1).toUpperCase()}</span>
       <span className={`status ${service.status === "ACTIVE" ? "status--confirmed" : "status--cancelled"}`}>{statusLabel[service.status]}</span>
@@ -267,7 +267,7 @@ function ServiceCard({
       <span>{formatDuration(service.durationMinutes)} - buffer {service.bufferBeforeMinutes}/{service.bufferAfterMinutes} min</span>
       <strong>{formatClp(service.priceFrom)}</strong>
     </footer>
-    <div className="button-row" style={{ gap: 10, marginTop: 16 }}>
+    <div className="admin-action-row">
       <button className="button button--ghost" type="button" onClick={onEdit} disabled={isPending}>Editar</button>
       {service.status === "ACTIVE"
         ? <button className="button button--ghost" type="button" onClick={() => onStatusChange("INACTIVE")} disabled={isPending}>Desactivar</button>
@@ -294,7 +294,7 @@ function ServicesStateNotice({
       </div>
       <span className={`status ${mode === "warning" ? "status--pending" : "status--cancelled"}`}>{mode === "warning" ? "MISSING_CONFIG" : "API_ERROR"}</span>
     </div>
-    <div className="demo-notice">
+    <div className="admin-message admin-message--warning">
       <span><strong>No se muestran datos demo</strong>Configura el API para operar con servicios reales persistentes.</span>
     </div>
   </section>;
