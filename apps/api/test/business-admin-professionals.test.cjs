@@ -57,8 +57,10 @@ function serviceWithMocks(options = {}) {
     professionalUpdateMany: [],
     professionalServiceUpdateMany: [],
     professionalServiceCreate: [],
+    professionalServiceUpsert: [],
     professionalLocationUpdateMany: [],
     professionalLocationCreate: [],
+    professionalLocationUpsert: [],
   };
   const rows = {
     existingProfessional: Object.prototype.hasOwnProperty.call(options, "existingProfessional")
@@ -103,6 +105,9 @@ function serviceWithMocks(options = {}) {
         return rows.response;
       },
       create: async (query) => {
+        if (options.professionalCreateError) {
+          throw options.professionalCreateError;
+        }
         calls.professionalCreate = query;
         return { id: "professional-1" };
       },
@@ -139,6 +144,13 @@ function serviceWithMocks(options = {}) {
         calls.professionalServiceCreate.push(query);
         return { id: "professional-service-1" };
       },
+      upsert: async (query) => {
+        if (options.professionalServiceUpsertError) {
+          throw options.professionalServiceUpsertError;
+        }
+        calls.professionalServiceUpsert.push(query);
+        return { id: "professional-service-1" };
+      },
     },
     professionalLocation: {
       updateMany: async (query) => {
@@ -151,6 +163,13 @@ function serviceWithMocks(options = {}) {
       },
       create: async (query) => {
         calls.professionalLocationCreate.push(query);
+        return { id: "professional-location-1" };
+      },
+      upsert: async (query) => {
+        if (options.professionalLocationUpsertError) {
+          throw options.professionalLocationUpsertError;
+        }
+        calls.professionalLocationUpsert.push(query);
         return { id: "professional-location-1" };
       },
     },
@@ -247,17 +266,37 @@ test("business admin professionals crea profesional compuesto con servicios y ub
     },
     status: "ACTIVE",
   });
-  assert.deepEqual(calls.professionalServiceCreate[0].data, {
-    businessId: "business-tenant-1",
-    professionalId: "professional-1",
-    serviceId: "service-1",
-    status: "ACTIVE",
+  assert.deepEqual(calls.professionalServiceUpsert[0], {
+    where: {
+      businessId_professionalId_serviceId: {
+        businessId: "business-tenant-1",
+        professionalId: "professional-1",
+        serviceId: "service-1",
+      },
+    },
+    update: { status: "ACTIVE" },
+    create: {
+      businessId: "business-tenant-1",
+      professionalId: "professional-1",
+      serviceId: "service-1",
+      status: "ACTIVE",
+    },
   });
-  assert.deepEqual(calls.professionalLocationCreate[0].data, {
-    businessId: "business-tenant-1",
-    professionalId: "professional-1",
-    locationId: "location-1",
-    status: "ACTIVE",
+  assert.deepEqual(calls.professionalLocationUpsert[0], {
+    where: {
+      businessId_professionalId_locationId: {
+        businessId: "business-tenant-1",
+        professionalId: "professional-1",
+        locationId: "location-1",
+      },
+    },
+    update: { status: "ACTIVE" },
+    create: {
+      businessId: "business-tenant-1",
+      professionalId: "professional-1",
+      locationId: "location-1",
+      status: "ACTIVE",
+    },
   });
   assert.equal(response.services.length, 1);
   assert.equal(response.locations.length, 1);
@@ -313,13 +352,13 @@ test("business admin professionals crea profesional compuesto para belleza tenan
   );
 
   assert.equal(calls.professionalCreate.data.businessId, "seed-beauty-business-main");
-  assert.deepEqual(calls.professionalServiceCreate[0].data, {
+  assert.deepEqual(calls.professionalServiceUpsert[0].create, {
     businessId: "seed-beauty-business-main",
     professionalId: "professional-1",
     serviceId: "beauty-service-1",
     status: "ACTIVE",
   });
-  assert.deepEqual(calls.professionalLocationCreate[0].data, {
+  assert.deepEqual(calls.professionalLocationUpsert[0].create, {
     businessId: "seed-beauty-business-main",
     professionalId: "professional-1",
     locationId: "beauty-location-1",
@@ -399,19 +438,94 @@ test("business admin professionals actualiza profesional compuesto en una transa
     roleTitle: "Colorista",
     status: "ACTIVE",
   });
-  assert.deepEqual(calls.professionalServiceCreate[0].data, {
+  assert.deepEqual(calls.professionalServiceUpsert[0].create, {
     businessId: "business-tenant-1",
     professionalId: "professional-1",
     serviceId: "service-1",
     status: "ACTIVE",
   });
-  assert.deepEqual(calls.professionalLocationCreate[0].data, {
+  assert.deepEqual(calls.professionalLocationUpsert[0].create, {
     businessId: "business-tenant-1",
     professionalId: "professional-1",
     locationId: "location-1",
     status: "ACTIVE",
   });
   assert.equal(response.id, "professional-1");
+});
+
+test("business admin professionals repara profesional parcial existente en belleza", async () => {
+  const { service, calls } = serviceWithMocks({
+    existingProfessional: { id: "beauty-partial-1", slug: "lorens-pro" },
+    services: [{ id: "seed-beauty-service-manicure-permanente" }],
+    locations: [{ id: "seed-beauty-location-main" }],
+    response: professionalRow({
+      id: "beauty-partial-1",
+      slug: "lorens-pro",
+      displayName: "Lorens Pro",
+      roleTitle: "La Mas Pro",
+      bio: "La Mas Pro de Todas",
+      services: [
+        {
+          service: {
+            id: "seed-beauty-service-manicure-permanente",
+            name: "Manicure permanente",
+          },
+        },
+      ],
+      locations: [
+        {
+          location: {
+            id: "seed-beauty-location-main",
+            slug: "nunoa-demo",
+            name: "Sucursal Nunoa Demo",
+            addressLine: "Calle Demostracion 245, Nunoa",
+            city: "Santiago",
+            status: "ACTIVE",
+          },
+        },
+      ],
+    }),
+  });
+
+  const response = await service.updateProfessional(
+    tenantContext({
+      businessId: "seed-beauty-business-main",
+      businessSlug: "velora-beauty-studio-demo",
+      businessName: "Velora Beauty Studio Demo",
+      businessVertical: "BEAUTY_STUDIO",
+    }),
+    "velora-beauty-studio-demo",
+    "beauty-partial-1",
+    {
+      displayName: "Lorens Pro",
+      roleTitle: "La Mas Pro",
+      bio: "La Mas Pro de Todas",
+      status: "ACTIVE",
+      serviceIds: ["seed-beauty-service-manicure-permanente"],
+      locationIds: ["seed-beauty-location-main"],
+    },
+  );
+
+  assert.deepEqual(calls.professionalUpdateMany[0].where, {
+    id: "beauty-partial-1",
+    businessId: "seed-beauty-business-main",
+  });
+  assert.deepEqual(calls.professionalServiceUpsert[0].where, {
+    businessId_professionalId_serviceId: {
+      businessId: "seed-beauty-business-main",
+      professionalId: "beauty-partial-1",
+      serviceId: "seed-beauty-service-manicure-permanente",
+    },
+  });
+  assert.deepEqual(calls.professionalLocationUpsert[0].where, {
+    businessId_professionalId_locationId: {
+      businessId: "seed-beauty-business-main",
+      professionalId: "beauty-partial-1",
+      locationId: "seed-beauty-location-main",
+    },
+  });
+  assert.equal(response.services.length, 1);
+  assert.equal(response.locations.length, 1);
 });
 
 test("business admin professionals permite update compuesto solo de asignaciones", async () => {
@@ -428,13 +542,13 @@ test("business admin professionals permite update compuesto solo de asignaciones
   );
 
   assert.deepEqual(calls.professionalUpdateMany, []);
-  assert.deepEqual(calls.professionalServiceCreate[0].data, {
+  assert.deepEqual(calls.professionalServiceUpsert[0].create, {
     businessId: "business-tenant-1",
     professionalId: "professional-1",
     serviceId: "service-1",
     status: "ACTIVE",
   });
-  assert.deepEqual(calls.professionalLocationCreate[0].data, {
+  assert.deepEqual(calls.professionalLocationUpsert[0].create, {
     businessId: "business-tenant-1",
     professionalId: "professional-1",
     locationId: "location-1",
@@ -483,6 +597,43 @@ test("business admin professionals rechaza slug duplicado", async () => {
   );
 });
 
+test("business admin professionals mapea unique Prisma de slug a error controlado", async () => {
+  const { service } = serviceWithMocks({
+    professionalCreateError: {
+      code: "P2002",
+      meta: { target: ["businessId", "slug"] },
+    },
+  });
+
+  await rejectsWithCode(
+    () => service.createProfessional(tenantContext(), "velora-barberia-demo", {
+      displayName: "Matias Rojas",
+    }),
+    400,
+    "ADMIN_PROFESSIONAL_SLUG_DUPLICATED",
+  );
+});
+
+test("business admin professionals mapea error Prisma de relacion a error controlado", async () => {
+  const { service } = serviceWithMocks({
+    professionalServiceUpsertError: {
+      code: "P2003",
+      meta: { field_name: "ProfessionalService_service_fkey" },
+    },
+  });
+
+  await rejectsWithCode(
+    () => service.updateProfessional(
+      tenantContext(),
+      "velora-barberia-demo",
+      "professional-1",
+      { serviceIds: ["service-1"] },
+    ),
+    400,
+    "ADMIN_PROFESSIONAL_RELATION_INVALID",
+  );
+});
+
 test("business admin professionals rechaza create compuesto con servicio invalido sin crear parcial", async () => {
   const { service, calls } = serviceWithMocks({ services: [] });
 
@@ -499,6 +650,8 @@ test("business admin professionals rechaza create compuesto con servicio invalid
   assert.equal(calls.professionalCreate, undefined);
   assert.deepEqual(calls.professionalServiceCreate, []);
   assert.deepEqual(calls.professionalLocationCreate, []);
+  assert.deepEqual(calls.professionalServiceUpsert, []);
+  assert.deepEqual(calls.professionalLocationUpsert, []);
 });
 
 test("business admin professionals rechaza create compuesto con ubicacion invalida sin crear parcial", async () => {
@@ -517,6 +670,8 @@ test("business admin professionals rechaza create compuesto con ubicacion invali
   assert.equal(calls.professionalCreate, undefined);
   assert.deepEqual(calls.professionalServiceCreate, []);
   assert.deepEqual(calls.professionalLocationCreate, []);
+  assert.deepEqual(calls.professionalServiceUpsert, []);
+  assert.deepEqual(calls.professionalLocationUpsert, []);
 });
 
 test("business admin professionals asocia servicios validos", async () => {
@@ -546,16 +701,38 @@ test("business admin professionals asocia servicios validos", async () => {
       notIn: ["service-1"],
     },
   });
-  assert.deepEqual(calls.professionalServiceUpdateMany[1], {
+  assert.deepEqual(calls.professionalServiceUpsert[0], {
     where: {
-      id: "professional-service-existing",
-      businessId: "business-tenant-1",
+      businessId_professionalId_serviceId: {
+        businessId: "business-tenant-1",
+        professionalId: "professional-1",
+        serviceId: "service-1",
+      },
     },
-    data: {
+    update: { status: "ACTIVE" },
+    create: {
+      businessId: "business-tenant-1",
+      professionalId: "professional-1",
+      serviceId: "service-1",
       status: "ACTIVE",
     },
   });
   assert.equal(response.id, "professional-1");
+});
+
+test("business admin professionals reactivacion de servicio existente usa upsert idempotente", async () => {
+  const { service, calls } = serviceWithMocks();
+
+  await service.replaceProfessionalServices(
+    tenantContext(),
+    "velora-barberia-demo",
+    "professional-1",
+    { serviceIds: ["service-1"] },
+  );
+
+  assert.equal(calls.professionalServiceUpsert.length, 1);
+  assert.deepEqual(calls.professionalServiceUpsert[0].update, { status: "ACTIVE" });
+  assert.deepEqual(calls.professionalServiceCreate, []);
 });
 
 test("business admin professionals rechaza servicio de otro negocio", async () => {
@@ -630,16 +807,38 @@ test("business admin professionals asocia ubicaciones validas", async () => {
       notIn: ["location-1"],
     },
   });
-  assert.deepEqual(calls.professionalLocationUpdateMany[1], {
+  assert.deepEqual(calls.professionalLocationUpsert[0], {
     where: {
-      id: "professional-location-existing",
-      businessId: "business-tenant-1",
+      businessId_professionalId_locationId: {
+        businessId: "business-tenant-1",
+        professionalId: "professional-1",
+        locationId: "location-1",
+      },
     },
-    data: {
+    update: { status: "ACTIVE" },
+    create: {
+      businessId: "business-tenant-1",
+      professionalId: "professional-1",
+      locationId: "location-1",
       status: "ACTIVE",
     },
   });
   assert.equal(response.id, "professional-1");
+});
+
+test("business admin professionals reactivacion de ubicacion existente usa upsert idempotente", async () => {
+  const { service, calls } = serviceWithMocks();
+
+  await service.replaceProfessionalLocations(
+    tenantContext(),
+    "velora-barberia-demo",
+    "professional-1",
+    { locationIds: ["location-1"] },
+  );
+
+  assert.equal(calls.professionalLocationUpsert.length, 1);
+  assert.deepEqual(calls.professionalLocationUpsert[0].update, { status: "ACTIVE" });
+  assert.deepEqual(calls.professionalLocationCreate, []);
 });
 
 test("business admin professionals crea relacion ubicacion si no existe", async () => {
@@ -652,7 +851,7 @@ test("business admin professionals crea relacion ubicacion si no existe", async 
     { locationIds: ["location-1"] },
   );
 
-  assert.deepEqual(calls.professionalLocationCreate[0].data, {
+  assert.deepEqual(calls.professionalLocationUpsert[0].create, {
     businessId: "business-tenant-1",
     professionalId: "professional-1",
     locationId: "location-1",

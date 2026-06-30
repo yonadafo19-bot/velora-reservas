@@ -94,16 +94,13 @@ export type AdminProfessionalMutationResult =
       ok: false;
       code: string;
       message: string;
+      httpStatus?: number;
+      requestId?: string;
     };
 
 interface AdminApiConfig {
   apiUrl: string;
   token: string;
-}
-
-interface ApiErrorResponse {
-  code?: string;
-  message?: string;
 }
 
 class AdminProfessionalsLoadError extends Error {
@@ -255,18 +252,26 @@ async function mutateAdminProfessional(
       },
       body: JSON.stringify(body),
     });
-    const payload = await response.json().catch(() => ({}));
+    const payload = await readJsonObject(response);
 
     if (!response.ok) {
-      const code = typeof (payload as ApiErrorResponse).code === "string"
-        ? (payload as ApiErrorResponse).code!
-        : "ADMIN_PROFESSIONAL_SAVE_FAILED";
+      const apiError = normalizeApiError(payload);
+      const code = apiError.code ?? "ADMIN_PROFESSIONAL_HTTP_ERROR";
 
       return {
         ok: false,
         code,
-        message: mapAdminProfessionalError(code),
+        message: buildAdminProfessionalErrorMessage(code, apiError.message, apiError.requestId),
+        httpStatus: response.status,
+        requestId: apiError.requestId,
       };
+    }
+
+    if (!payload) {
+      throw new AdminProfessionalsLoadError(
+        "Admin professional API returned invalid JSON.",
+        response.status,
+      );
     }
 
     return {
@@ -275,13 +280,44 @@ async function mutateAdminProfessional(
     };
   } catch (error) {
     logAdminProfessionalsError(error);
+    const code = error instanceof AdminProfessionalsLoadError
+      ? "ADMIN_PROFESSIONAL_RESPONSE_INVALID"
+      : error instanceof TypeError
+        ? "ADMIN_PROFESSIONAL_NETWORK_ERROR"
+        : "ADMIN_PROFESSIONAL_SAVE_FAILED";
 
     return {
       ok: false,
-      code: "ADMIN_PROFESSIONAL_SAVE_FAILED",
-      message: "No pudimos guardar el profesional. Intenta nuevamente.",
+      code,
+      message: buildAdminProfessionalErrorMessage(code),
+      httpStatus: error instanceof AdminProfessionalsLoadError ? error.status : undefined,
     };
   }
+}
+
+async function readJsonObject(response: Response): Promise<Record<string, unknown> | null> {
+  try {
+    const payload = await response.json() as unknown;
+    return isRecord(payload) ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeApiError(payload: Record<string, unknown> | null): {
+  code?: string;
+  message?: string;
+  requestId?: string;
+} {
+  if (!payload) {
+    return {};
+  }
+
+  return {
+    code: getSafeString(payload.code),
+    message: getSafeString(payload.message),
+    requestId: getSafeString(payload.requestId),
+  };
 }
 
 async function getAdminApi<T>(
@@ -478,10 +514,48 @@ function mapAdminProfessionalError(code: string): string {
     ADMIN_PROFESSIONAL_LOCATIONS_INVALID_INPUT: "Revisa las sucursales asignadas.",
     ADMIN_PROFESSIONAL_LOCATIONS_DUPLICATED: "No repitas sucursales para el mismo profesional.",
     ADMIN_PROFESSIONAL_LOCATION_INVALID: "Una o mas sucursales no estan disponibles para este negocio.",
+    ADMIN_PROFESSIONAL_ASSIGNMENT_CONFLICT: "La asignacion del profesional ya existe. Intenta guardar nuevamente.",
+    ADMIN_PROFESSIONAL_CONFLICT: "Los datos del profesional entran en conflicto con registros existentes.",
+    ADMIN_PROFESSIONAL_RELATION_INVALID: "Servicio, sucursal o profesional no disponible para este negocio.",
+    ADMIN_PROFESSIONAL_HTTP_ERROR: "No pudimos guardar el profesional. El API devolvio una respuesta inesperada.",
+    ADMIN_PROFESSIONAL_NETWORK_ERROR: "No pudimos conectar con el API para guardar el profesional.",
+    ADMIN_PROFESSIONAL_RESPONSE_INVALID: "El API guardo o respondio con un formato inesperado. Revisa la consola del servidor.",
     TENANT_BUSINESS_MISMATCH: "No tienes acceso a este negocio.",
+    INTERNAL_SERVER_ERROR: "El API no pudo completar el guardado. Revisa el requestId en la consola del servidor.",
   };
 
   return messages[code] ?? "No pudimos guardar el profesional. Intenta nuevamente.";
+}
+
+function buildAdminProfessionalErrorMessage(
+  code: string,
+  apiMessage?: string,
+  requestId?: string,
+) {
+  const baseMessage = getControlledApiMessage(apiMessage) ?? mapAdminProfessionalError(code);
+  const reference = [
+    `Codigo: ${code}`,
+    requestId ? `Solicitud: ${requestId}` : null,
+  ].filter(Boolean).join(". ");
+
+  return reference ? `${baseMessage} ${reference}.` : baseMessage;
+}
+
+function getControlledApiMessage(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  if (!normalized || normalized.length > 240 || hasSensitiveToken(normalized)) {
+    return undefined;
+  }
+
+  return normalized;
+}
+
+function hasSensitiveToken(value: string): boolean {
+  return /(database_url|password|passwd|token|api[_-]?key|bearer|secret)/i.test(value);
 }
 
 function logAdminProfessionalsError(error: unknown) {
@@ -511,4 +585,12 @@ function isNonEmptyString(value: unknown): value is string {
 
 function getIntegerOrDefault(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isInteger(value) ? value : fallback;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function getSafeString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }

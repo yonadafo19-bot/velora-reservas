@@ -97,7 +97,7 @@ export class BusinessAdminProfessionalsService {
     const input = this.validateCreateInput(body);
     const assignments = this.validateOptionalAssignments(body);
 
-    return this.transactions.runInTransaction(async (transaction) => {
+    return this.withKnownPrismaErrors(this.transactions.runInTransaction(async (transaction) => {
       await this.assertSlugAvailable(transaction, tenant.businessId, input.slug);
       await this.assertOptionalAssignmentsAvailable(transaction, tenant.businessId, assignments);
 
@@ -136,7 +136,7 @@ export class BusinessAdminProfessionalsService {
       }
 
       return this.getProfessionalResponse(transaction, tenant.businessId, created.id);
-    });
+    }));
   }
 
   async updateProfessional(
@@ -155,7 +155,7 @@ export class BusinessAdminProfessionalsService {
       throw this.invalidInput();
     }
 
-    return this.transactions.runInTransaction(async (transaction) => {
+    return this.withKnownPrismaErrors(this.transactions.runInTransaction(async (transaction) => {
       const existing = await this.getExistingProfessional(
         transaction,
         tenant.businessId,
@@ -199,7 +199,7 @@ export class BusinessAdminProfessionalsService {
       }
 
       return this.getProfessionalResponse(transaction, tenant.businessId, professionalId);
-    });
+    }));
   }
 
   async replaceProfessionalServices(
@@ -211,13 +211,13 @@ export class BusinessAdminProfessionalsService {
     this.assertTenantSlug(tenant, businessSlug);
     const serviceIds = this.validateServiceIdsInput(body);
 
-    return this.transactions.runInTransaction(async (transaction) => {
+    return this.withKnownPrismaErrors(this.transactions.runInTransaction(async (transaction) => {
       await this.getExistingProfessional(transaction, tenant.businessId, professionalId);
       await this.assertServicesAvailable(transaction, tenant.businessId, serviceIds);
       await this.writeProfessionalServices(transaction, tenant.businessId, professionalId, serviceIds);
 
       return this.getProfessionalResponse(transaction, tenant.businessId, professionalId);
-    });
+    }));
   }
 
   async replaceProfessionalLocations(
@@ -229,13 +229,13 @@ export class BusinessAdminProfessionalsService {
     this.assertTenantSlug(tenant, businessSlug);
     const locationIds = this.validateLocationIdsInput(body);
 
-    return this.transactions.runInTransaction(async (transaction) => {
+    return this.withKnownPrismaErrors(this.transactions.runInTransaction(async (transaction) => {
       await this.getExistingProfessional(transaction, tenant.businessId, professionalId);
       await this.assertLocationsAvailable(transaction, tenant.businessId, locationIds);
       await this.writeProfessionalLocations(transaction, tenant.businessId, professionalId, locationIds);
 
       return this.getProfessionalResponse(transaction, tenant.businessId, professionalId);
-    });
+    }));
   }
 
   private async writeProfessionalServices(
@@ -259,37 +259,24 @@ export class BusinessAdminProfessionalsService {
     });
 
     for (const serviceId of serviceIds) {
-      const existing = await transaction.professionalService.findFirst({
+      await transaction.professionalService.upsert({
         where: {
-          businessId,
-          professionalId,
-          serviceId,
-        },
-        select: {
-          id: true,
-        },
-      });
-
-      if (existing) {
-        await transaction.professionalService.updateMany({
-          where: {
-            id: existing.id,
-            businessId,
-          },
-          data: {
-            status: "ACTIVE",
-          },
-        });
-      } else {
-        await transaction.professionalService.create({
-          data: {
+          businessId_professionalId_serviceId: {
             businessId,
             professionalId,
             serviceId,
-            status: "ACTIVE",
           },
-        });
-      }
+        },
+        update: {
+          status: "ACTIVE",
+        },
+        create: {
+          businessId,
+          professionalId,
+          serviceId,
+          status: "ACTIVE",
+        },
+      });
     }
   }
 
@@ -314,38 +301,86 @@ export class BusinessAdminProfessionalsService {
     });
 
     for (const locationId of locationIds) {
-      const existing = await transaction.professionalLocation.findFirst({
+      await transaction.professionalLocation.upsert({
         where: {
-          businessId,
-          professionalId,
-          locationId,
-        },
-        select: {
-          id: true,
-        },
-      });
-
-      if (existing) {
-        await transaction.professionalLocation.updateMany({
-          where: {
-            id: existing.id,
-            businessId,
-          },
-          data: {
-            status: "ACTIVE",
-          },
-        });
-      } else {
-        await transaction.professionalLocation.create({
-          data: {
+          businessId_professionalId_locationId: {
             businessId,
             professionalId,
             locationId,
-            status: "ACTIVE",
           },
+        },
+        update: {
+          status: "ACTIVE",
+        },
+        create: {
+          businessId,
+          professionalId,
+          locationId,
+          status: "ACTIVE",
+        },
+      });
+    }
+  }
+
+  private async withKnownPrismaErrors<T>(operation: Promise<T>): Promise<T> {
+    try {
+      return await operation;
+    } catch (error) {
+      throw this.toControlledPrismaError(error);
+    }
+  }
+
+  private toControlledPrismaError(error: unknown): unknown {
+    if (!this.isKnownPrismaError(error)) {
+      return error;
+    }
+
+    if (error.code === "P2002") {
+      if (this.prismaTargetIncludes(error, "slug")) {
+        return new BadRequestException({
+          code: "ADMIN_PROFESSIONAL_SLUG_DUPLICATED",
+          message: "Ya existe un profesional con ese slug.",
         });
       }
+
+      if (this.prismaTargetIncludes(error, "professionalId")) {
+        return new BadRequestException({
+          code: "ADMIN_PROFESSIONAL_ASSIGNMENT_CONFLICT",
+          message: "La asignacion del profesional ya existe. Intenta guardar nuevamente.",
+        });
+      }
+
+      return new BadRequestException({
+        code: "ADMIN_PROFESSIONAL_CONFLICT",
+        message: "Los datos del profesional entran en conflicto con registros existentes.",
+      });
     }
+
+    if (error.code === "P2003" || error.code === "P2025") {
+      return new BadRequestException({
+        code: "ADMIN_PROFESSIONAL_RELATION_INVALID",
+        message: "Servicio, sucursal o profesional no disponible para este negocio.",
+      });
+    }
+
+    return error;
+  }
+
+  private isKnownPrismaError(error: unknown): error is { code: string; meta?: Record<string, unknown> } {
+    if (!error || typeof error !== "object") {
+      return false;
+    }
+
+    return "code" in error && typeof (error as { code?: unknown }).code === "string";
+  }
+
+  private prismaTargetIncludes(error: { meta?: Record<string, unknown> }, field: string): boolean {
+    const target = error.meta?.target;
+    if (Array.isArray(target)) {
+      return target.some((item) => typeof item === "string" && item.includes(field));
+    }
+
+    return typeof target === "string" && target.includes(field);
   }
 
   private async getExistingProfessional(
