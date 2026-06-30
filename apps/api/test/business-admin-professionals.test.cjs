@@ -63,7 +63,7 @@ function serviceWithMocks(options = {}) {
     professionalLocationUpsert: [],
     businessHourFindMany: [],
     professionalAvailabilityRuleFindFirst: [],
-    professionalAvailabilityRuleCreate: [],
+    professionalAvailabilityRuleCreateMany: [],
   };
   const rows = {
     existingProfessional: Object.prototype.hasOwnProperty.call(options, "existingProfessional")
@@ -194,8 +194,14 @@ function serviceWithMocks(options = {}) {
         return rows.existingAvailabilityRule;
       },
       create: async (query) => {
-        calls.professionalAvailabilityRuleCreate.push(query);
-        return { id: `availability-rule-${calls.professionalAvailabilityRuleCreate.length}` };
+        throw new Error(`professionalAvailabilityRule.create no debe usarse para disponibilidad inicial: ${JSON.stringify(query)}`);
+      },
+      createMany: async (query) => {
+        calls.professionalAvailabilityRuleCreateMany.push(query);
+        if (options.professionalAvailabilityRuleCreateManyError) {
+          throw options.professionalAvailabilityRuleCreateManyError;
+        }
+        return { count: query.data.length };
       },
     },
   };
@@ -441,16 +447,27 @@ test("business admin professionals crea disponibilidad inicial para profesional 
     locationId: "beauty-location-1",
     status: "ACTIVE",
   });
-  assert.equal(calls.professionalAvailabilityRuleCreate.length, 2);
-  assert.deepEqual(calls.professionalAvailabilityRuleCreate[0].data, {
-    businessId: "seed-beauty-business-main",
-    professionalId: "professional-1",
-    locationId: "beauty-location-1",
-    weekday: "MONDAY",
-    startsAtLocal: "09:00",
-    endsAtLocal: "18:00",
-    status: "ACTIVE",
-  });
+  assert.equal(calls.professionalAvailabilityRuleCreateMany.length, 1);
+  assert.deepEqual(calls.professionalAvailabilityRuleCreateMany[0].data, [
+    {
+      businessId: "seed-beauty-business-main",
+      professionalId: "professional-1",
+      locationId: "beauty-location-1",
+      weekday: "MONDAY",
+      startsAtLocal: "09:00",
+      endsAtLocal: "18:00",
+      status: "ACTIVE",
+    },
+    {
+      businessId: "seed-beauty-business-main",
+      professionalId: "professional-1",
+      locationId: "beauty-location-1",
+      weekday: "TUESDAY",
+      startsAtLocal: "10:00",
+      endsAtLocal: "19:00",
+      status: "ACTIVE",
+    },
+  ]);
 });
 
 test("business admin professionals usa horario global si la sucursal no tiene horario propio", async () => {
@@ -475,15 +492,18 @@ test("business admin professionals usa horario global si la sucursal no tiene ho
     "location-1",
     null,
   ]);
-  assert.deepEqual(calls.professionalAvailabilityRuleCreate[0].data, {
-    businessId: "business-tenant-1",
-    professionalId: "professional-1",
-    locationId: "location-1",
-    weekday: "WEDNESDAY",
-    startsAtLocal: "11:00",
-    endsAtLocal: "17:00",
-    status: "ACTIVE",
-  });
+  assert.equal(calls.professionalAvailabilityRuleCreateMany.length, 1);
+  assert.deepEqual(calls.professionalAvailabilityRuleCreateMany[0].data, [
+    {
+      businessId: "business-tenant-1",
+      professionalId: "professional-1",
+      locationId: "location-1",
+      weekday: "WEDNESDAY",
+      startsAtLocal: "11:00",
+      endsAtLocal: "17:00",
+      status: "ACTIVE",
+    },
+  ]);
 });
 
 test("business admin professionals no duplica ni sobrescribe disponibilidad activa existente", async () => {
@@ -508,7 +528,7 @@ test("business admin professionals no duplica ni sobrescribe disponibilidad acti
   );
 
   assert.equal(calls.businessHourFindMany.length, 0);
-  assert.equal(calls.professionalAvailabilityRuleCreate.length, 0);
+  assert.equal(calls.professionalAvailabilityRuleCreateMany.length, 0);
 });
 
 test("business admin professionals no crea disponibilidad falsa sin horario de negocio aplicable", async () => {
@@ -525,7 +545,42 @@ test("business admin professionals no crea disponibilidad falsa sin horario de n
     "location-1",
     null,
   ]);
-  assert.equal(calls.professionalAvailabilityRuleCreate.length, 0);
+  assert.equal(calls.professionalAvailabilityRuleCreateMany.length, 0);
+});
+
+test("business admin professionals propaga timeout P2028 al crear disponibilidad inicial", async () => {
+  const timeoutError = new Error("Transaction already closed");
+  timeoutError.code = "P2028";
+  timeoutError.meta = {
+    modelName: "ProfessionalAvailabilityRule",
+    operation: "query",
+    timeout: 5000,
+    timeTaken: 6661,
+  };
+  const { service } = serviceWithMocks({
+    businessHoursByLocation: {
+      "location-1": [
+        {
+          weekday: "MONDAY",
+          opensAtLocal: "09:00",
+          closesAtLocal: "18:00",
+        },
+      ],
+    },
+    professionalAvailabilityRuleCreateManyError: timeoutError,
+  });
+
+  await assert.rejects(
+    () => service.replaceProfessionalLocations(
+      tenantContext(),
+      "velora-barberia-demo",
+      "professional-1",
+      { locationIds: ["location-1"] },
+    ),
+    (error) => error.code === "P2028"
+      && error.meta.modelName === "ProfessionalAvailabilityRule"
+      && error.meta.timeout === 5000,
+  );
 });
 
 test("business admin professionals lista ubicaciones activas tenant-safe", async () => {

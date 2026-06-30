@@ -363,19 +363,21 @@ export class BusinessAdminProfessionalsService {
       ? locationHours
       : await this.findActiveBusinessHours(transaction, businessId, null);
 
-    for (const hour of sourceHours) {
-      await transaction.professionalAvailabilityRule.create({
-        data: {
-          businessId,
-          professionalId,
-          locationId,
-          weekday: hour.weekday,
-          startsAtLocal: hour.opensAtLocal,
-          endsAtLocal: hour.closesAtLocal,
-          status: "ACTIVE",
-        },
-      });
+    if (sourceHours.length === 0) {
+      return;
     }
+
+    await transaction.professionalAvailabilityRule.createMany({
+      data: sourceHours.map((hour) => ({
+        businessId,
+        professionalId,
+        locationId,
+        weekday: hour.weekday,
+        startsAtLocal: hour.opensAtLocal,
+        endsAtLocal: hour.closesAtLocal,
+        status: "ACTIVE" as const,
+      })),
+    });
   }
 
   private async findActiveBusinessHours(
