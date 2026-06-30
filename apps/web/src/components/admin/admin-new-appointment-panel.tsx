@@ -69,7 +69,7 @@ export function AdminNewAppointmentPanel({ form }: { form?: AdminAppointmentForm
       setDialogError(null);
       setIsOpen(true);
     }}>Nueva cita</button>
-    {message && message.type === "success" && <small style={{ display: "block", marginTop: 8, color: "#397052" }}>{message.text}</small>}
+    {message && message.type === "success" && <small style={{ display: "block", marginTop: 8, color: "#397052", maxWidth: 260 }}>{message.text}</small>}
     {isOpen && <AppointmentFormDialog
       data={form.data}
       errorMessage={dialogError}
@@ -179,34 +179,34 @@ function AppointmentFormDialog({
 
   return <AppointmentDialog title="Nueva cita" onClose={onClose}>
     {disabledReason
-      ? <Notice title="Faltan datos reales" message={disabledReason}/>
+      ? <Notice title="Faltan datos reales" message={disabledReason} mode="warning"/>
       : <form onSubmit={(event) => {
         event.preventDefault();
         onSubmit(validateForm(data, formState, timeOptions));
       }}>
-        <div className="form-grid">
+        <div className="admin-field-grid">
           <label>Cliente<select value={formState.customerId} onChange={(event) => onChange({ customerId: event.target.value })}><option value="">Selecciona cliente</option>{data.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.fullName} - {customer.phone}</option>)}</select></label>
           <label>Servicio<select value={formState.serviceId} onChange={(event) => onChange({ serviceId: event.target.value, time: "" })}><option value="">Selecciona servicio</option>{data.services.map((service) => <option key={service.id} value={service.id}>{service.name} - {formatClp(service.priceFrom)}</option>)}</select></label>
           <label>Profesional<select value={formState.professionalId} onChange={(event) => onChange({ professionalId: event.target.value, locationId: "", time: "" })}><option value="">Selecciona profesional</option>{data.professionals.map((professional) => <option key={professional.id} value={professional.id}>{professional.displayName}{professional.roleTitle ? ` - ${professional.roleTitle}` : ""}</option>)}</select></label>
           <label>Ubicación<select value={formState.locationId} onChange={(event) => onChange({ locationId: event.target.value, time: "" })} disabled={!formState.professionalId || compatibleLocations.length === 0}><option value="">Selecciona ubicación</option>{compatibleLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
         </div>
-        <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
-          <label style={{ display: "grid", gap: 8, fontSize: 13, fontWeight: 700 }}>Fecha de la cita<input type="date" min={todayDate} value={formState.date} onChange={(event) => onChange({ date: event.target.value, time: "" })} style={{ minHeight: 50, fontSize: 16 }}/></label>
+        <div className="admin-form-section">
+          <label>Fecha de la cita<input type="date" min={todayDate} value={formState.date} onChange={(event) => onChange({ date: event.target.value, time: "" })}/></label>
           <div>
-            <div className="panel-heading" style={{ marginBottom: 10 }}>
+            <div className="admin-form-section__header">
               <div>
-                <h2 style={{ fontSize: 18 }}>Hora de inicio</h2>
-                <p>Horarios según disponibilidad real del profesional, ubicación y día seleccionados.</p>
+                <strong>Hora de inicio</strong>
+                <small>Horarios según disponibilidad real del profesional, ubicación y día seleccionados.</small>
               </div>
             </div>
             {!formState.serviceId || !formState.professionalId || !formState.locationId
-              ? <Notice title="Selecciona los datos primero" message="Elige servicio, profesional y ubicación para ver horarios disponibles."/>
+              ? <Notice title="Selecciona los datos primero" message="Elige servicio, profesional y ubicación para ver horarios disponibles." mode="info"/>
               : timeOptions.length === 0 || !hasAvailableTimes
-                ? <Notice title="Sin horarios disponibles" message="No hay horarios disponibles para esta fecha. Prueba con otro día u otro profesional."/>
+                ? <Notice title="Sin horarios disponibles" message="No hay horarios disponibles para esta fecha. Prueba con otro día u otro profesional." mode="warning"/>
                 : <TimeSlotGrid options={timeOptions} selectedTime={formState.time} onSelect={(time) => onChange({ time })}/>}
           </div>
         </div>
-        <div className="demo-notice" style={{ marginTop: 18 }}>
+        <div className="admin-message admin-message--info" style={{ marginTop: 18 }}>
           <span>
             <strong>Resumen</strong>
             {selectedService ? `${selectedService.name} - ${formatDuration(selectedService.durationMinutes)} - ${formatClp(selectedService.priceFrom)}` : "Selecciona un servicio."}
@@ -215,21 +215,23 @@ function AppointmentFormDialog({
             {formState.time ? ` Hora: ${formState.time}.` : ""}
           </span>
         </div>
-        <div className="demo-notice" style={{ marginTop: 12 }}>
+        <div className="admin-message admin-message--info" style={{ marginTop: 12 }}>
           <span><strong>Recomendación</strong>Te recomendamos llegar 5 minutos antes.</span>
         </div>
         {selectedProfessional && selectedService && !selectedProfessional.services.some((service) => service.id === selectedService.id)
-          ? <Notice title="Servicio no compatible" message="El profesional seleccionado no realiza este servicio."/>
+          ? <Notice title="Servicio no compatible" message="El profesional seleccionado no realiza este servicio." mode="warning"/>
           : null}
         {formState.professionalId && compatibleLocations.length === 0
-          ? <Notice title="Sin ubicaciones disponibles" message="El profesional seleccionado no tiene ubicaciones activas."/>
+          ? <Notice title="Sin ubicaciones disponibles" message="El profesional seleccionado no tiene ubicaciones activas." mode="warning"/>
           : null}
         {errorMessage
-          ? <Notice title="No se pudo crear la cita" message={errorMessage}/>
+          ? <Notice title="No se pudo crear la cita" message={errorMessage} mode="error"/>
           : null}
-        <div className="button-row" style={{ justifyContent: "flex-end", marginTop: 18 }}>
-          <button className="button button--ghost" type="button" onClick={onClose} disabled={isPending}>Cerrar</button>
-          <button className="button" type="submit" disabled={isPending || !formState.time}>{isPending ? "Creando..." : "Crear cita"}</button>
+        <div className="admin-dialog__footer">
+          <div className="admin-action-row" style={{ marginTop: 0 }}>
+            <button className="button button--ghost" type="button" onClick={onClose} disabled={isPending}>Cerrar</button>
+            <button className="button" type="submit" disabled={isPending || !formState.time}>{isPending ? "Creando..." : "Crear cita"}</button>
+          </div>
         </div>
       </form>}
   </AppointmentDialog>;
@@ -244,26 +246,15 @@ function TimeSlotGrid({
   selectedTime: string;
   onSelect: (time: string) => void;
 }) {
-  return <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(112px, 1fr))", gap: 10 }}>
+  return <div className="admin-slot-grid">
     {options.map((option) => <button
       key={option.time}
+      className={`admin-slot ${selectedTime === option.time ? "is-selected" : ""}`}
       type="button"
       aria-pressed={selectedTime === option.time}
       disabled={!option.isAvailable}
       onClick={() => onSelect(option.time)}
       title={option.reason}
-      style={{
-        minHeight: 58,
-        borderRadius: 18,
-        border: selectedTime === option.time ? "1px solid rgba(58, 73, 45, .95)" : "1px solid rgba(58, 73, 45, .18)",
-        background: option.isAvailable ? selectedTime === option.time ? "rgba(58, 73, 45, .14)" : "rgba(255,255,255,.7)" : "rgba(146, 86, 80, .08)",
-        color: option.isAvailable ? "#2d3328" : "#8d7169",
-        cursor: option.isAvailable ? "pointer" : "not-allowed",
-        display: "grid",
-        gap: 2,
-        padding: "8px 10px",
-        textAlign: "left",
-      }}
     >
       <strong>{option.time}</strong>
       <small>{option.isAvailable ? "Disponible" : option.reason}</small>
@@ -272,16 +263,16 @@ function TimeSlotGrid({
 }
 
 function AppointmentDialog({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
-  return <div role="presentation" style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(24,25,22,.55)", display: "grid", placeItems: "center", padding: 18 }}>
-    <section className="admin-panel" role="dialog" aria-modal="true" aria-label={title} style={{ width: "min(760px, 100%)", maxHeight: "90vh", overflowY: "auto" }}>
-      <div className="panel-heading"><div><h2>{title}</h2><p>Completa los datos para crear una reserva real.</p></div><button className="button button--ghost" type="button" onClick={onClose}>Cerrar</button></div>
-      {children}
+  return <div className="admin-dialog-overlay" role="presentation">
+    <section className="admin-panel admin-dialog" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="admin-dialog__header"><div><h2>{title}</h2><p>Completa los datos para crear una reserva real.</p></div><button className="button button--ghost" type="button" onClick={onClose}>Cerrar</button></div>
+      <div className="admin-dialog__body">{children}</div>
     </section>
   </div>;
 }
 
-function Notice({ title, message }: { title: string; message: string }) {
-  return <div className="demo-notice" style={{ marginTop: 14 }}><span><strong>{title}</strong>{message}</span></div>;
+function Notice({ title, message, mode = "info" }: { title: string; message: string; mode?: "info" | "warning" | "error" }) {
+  return <div className={`admin-message admin-message--${mode}`} style={{ marginTop: 14 }}><span><strong>{title}</strong>{message}</span></div>;
 }
 
 function validateForm(data: AdminAppointmentFormData, formState: FormState, timeOptions: TimeOption[]): string | undefined {

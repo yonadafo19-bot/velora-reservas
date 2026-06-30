@@ -167,7 +167,7 @@ function ConnectedProfessionalsPanel({
         onSubmit={submit}
       />
 
-      {message && <div className="demo-notice" style={{ marginTop: 14, background: message.type === "success" ? "#e5f1e9" : "#f5e7e6" }}>
+      {message && <div className={`admin-message admin-message--${message.type}`} style={{ marginTop: 14 }}>
         <span><strong>{message.type === "success" ? "Guardado" : "No se pudo guardar"}</strong>{message.text}</span>
       </div>}
     </section>
@@ -180,7 +180,7 @@ function ConnectedProfessionalsPanel({
         </div>
       </div>
       {professionals.length === 0
-        ? <div className="demo-notice"><span><strong>Equipo vacio</strong>Crea el primer profesional para asignarlo a la agenda.</span></div>
+        ? <div className="admin-message admin-message--info"><span><strong>Equipo vacio</strong>Crea el primer profesional para asignarlo a la agenda.</span></div>
         : <div className="admin-card-grid professional-grid">{professionals.map((professional) => <ProfessionalCard
           key={professional.id}
           professional={professional}
@@ -234,7 +234,7 @@ function ProfessionalForm({
     event.preventDefault();
     onSubmit();
   }}>
-    <div className="form-grid">
+    <div className="admin-field-grid">
       <label>Nombre<input value={value.displayName} onChange={(event) => onChange({ displayName: event.target.value })} placeholder="Ej. Matias Rojas"/></label>
       <label>Estado<select value={value.status} onChange={(event) => onChange({ status: event.target.value as AdminProfessionalStatus })}><option value="ACTIVE">Activo</option><option value="INACTIVE">Inactivo</option><option value="ARCHIVED">Archivado</option></select></label>
       <label>Rol<input value={value.roleTitle} onChange={(event) => onChange({ roleTitle: event.target.value })} placeholder="Ej. Barbero senior"/></label>
@@ -242,11 +242,13 @@ function ProfessionalForm({
       <label className="full">Correo<input value={value.email} type="email" onChange={(event) => onChange({ email: event.target.value })} placeholder="nombre@correo.cl"/></label>
       <label className="full">Bio<input value={value.bio} onChange={(event) => onChange({ bio: event.target.value })} placeholder="Detalle breve del perfil"/></label>
     </div>
-    <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
-      <strong style={{ fontSize: 13 }}>Servicios asignados</strong>
+    <div className="admin-form-section">
+      <div className="admin-form-section__header">
+        <span><strong>Servicios asignados</strong><small>Define que servicios puede tomar este profesional.</small></span>
+      </div>
       {services.length === 0
-        ? <div className="demo-notice"><span><strong>Sin servicios activos</strong>Crea o activa servicios antes de asignarlos al equipo.</span></div>
-        : <div className="form-grid">{services.map((service) => <label key={service.id} style={{ alignItems: "center", display: "flex", flexDirection: "row", gap: 10 }}>
+        ? <div className="admin-message admin-message--warning"><span><strong>Sin servicios activos</strong>Crea o activa servicios antes de asignarlos al equipo.</span></div>
+        : <div className="admin-checkbox-grid">{services.map((service) => <label key={service.id} className={`admin-checkbox-option ${value.serviceIds.includes(service.id) ? "is-selected" : ""}`}>
           <input
             type="checkbox"
             checked={value.serviceIds.includes(service.id)}
@@ -259,11 +261,13 @@ function ProfessionalForm({
           <span>{service.name}</span>
         </label>)}</div>}
     </div>
-    <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
-      <strong style={{ fontSize: 13 }}>Sucursales asignadas</strong>
+    <div className="admin-form-section">
+      <div className="admin-form-section__header">
+        <span><strong>Sucursales asignadas</strong><small>Selecciona donde puede atender dentro de la agenda real.</small></span>
+      </div>
       {locations.length === 0
-        ? <div className="demo-notice"><span><strong>Sin sucursales activas</strong>Activa al menos una sucursal antes de asignarla al equipo.</span></div>
-        : <div className="form-grid">{locations.map((location) => <label key={location.id} style={{ alignItems: "center", display: "flex", flexDirection: "row", gap: 10 }}>
+        ? <div className="admin-message admin-message--warning"><span><strong>Sin sucursales activas</strong>Activa al menos una sucursal antes de asignarla al equipo.</span></div>
+        : <div className="admin-checkbox-grid">{locations.map((location) => <label key={location.id} className={`admin-checkbox-option ${value.locationIds.includes(location.id) ? "is-selected" : ""}`}>
           <input
             type="checkbox"
             checked={value.locationIds.includes(location.id)}
@@ -276,7 +280,7 @@ function ProfessionalForm({
           <span>{formatLocationLabel(location)}</span>
         </label>)}</div>}
     </div>
-    <div className="button-row" style={{ justifyContent: "flex-end", marginTop: 18 }}>
+    <div className="admin-action-row">
       <button className="button button--ghost" type="button" onClick={onCancel} disabled={isPending}>Limpiar</button>
       <button className="button" type="submit" disabled={isPending}>{isPending ? "Guardando..." : value.professionalId ? "Guardar cambios" : "Crear profesional"}</button>
     </div>
@@ -296,15 +300,27 @@ function ProfessionalCard({
   onEdit: () => void;
   onStatusChange: (status: AdminProfessionalStatus) => void;
 }) {
-  return <article className="professional-card" style={isSelected ? { outline: "2px solid rgba(58, 73, 45, .32)" } : undefined}>
-    <span className="large-avatar">{initials(professional.displayName)}</span>
-    <h3>{professional.displayName}</h3>
-    <p>{professional.roleTitle ?? "Sin rol definido."}</p>
-    <div><span>{professional.services.length} servicios</span><span className={`status ${professional.status === "ACTIVE" ? "status--confirmed" : "status--cancelled"}`}>{statusLabel[professional.status]}</span></div>
-    <p>{professional.services.length ? professional.services.map((service) => service.name).join(", ") : "Sin servicios asignados."}</p>
-    <div><span>{professional.locations.length} sucursales</span></div>
-    <p>{professional.locations.length ? professional.locations.map(formatLocationLabel).join(", ") : "Sin sucursales asignadas."}</p>
-    <div className="button-row" style={{ gap: 10, justifyContent: "center", marginTop: 16 }}>
+  return <article className={`professional-card ${isSelected ? "is-selected" : ""}`}>
+    <div className="professional-card__header">
+      <span className="large-avatar">{initials(professional.displayName)}</span>
+      <span>
+        <h3>{professional.displayName}</h3>
+        <p>{professional.roleTitle ?? "Sin rol definido."}</p>
+      </span>
+    </div>
+    <div className="professional-card__meta">
+      <span>{professional.services.length} servicios</span>
+      <span className={`status ${professional.status === "ACTIVE" ? "status--confirmed" : "status--cancelled"}`}>{statusLabel[professional.status]}</span>
+    </div>
+    <div className="professional-card__details">
+      <small>Servicios</small>
+      <p>{professional.services.length ? professional.services.map((service) => service.name).join(", ") : "Sin servicios asignados."}</p>
+    </div>
+    <div className="professional-card__details">
+      <small>Sucursales</small>
+      <p>{professional.locations.length ? professional.locations.map(formatLocationLabel).join(", ") : "Sin sucursales asignadas."}</p>
+    </div>
+    <div className="admin-action-row">
       <button className="button button--ghost" type="button" onClick={onEdit} disabled={isPending}>Editar</button>
       {professional.status === "ACTIVE"
         ? <button className="button button--ghost" type="button" onClick={() => onStatusChange("INACTIVE")} disabled={isPending}>Desactivar</button>
@@ -331,7 +347,7 @@ function ProfessionalsStateNotice({
       </div>
       <span className={`status ${mode === "warning" ? "status--pending" : "status--cancelled"}`}>{mode === "warning" ? "MISSING_CONFIG" : "API_ERROR"}</span>
     </div>
-    <div className="demo-notice">
+    <div className="admin-message admin-message--warning">
       <span><strong>No se muestran datos demo</strong>Configura el API para operar con profesionales reales persistentes.</span>
     </div>
   </section>;

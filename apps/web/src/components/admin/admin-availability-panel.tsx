@@ -147,7 +147,7 @@ function ConnectedAvailabilityPanel({
       <article><small>Profesional</small><strong>{activeProfessionalDays}</strong><em>Dias disponibles</em></article>
     </div>
 
-    {needsLocationMessage && <div className="demo-notice" style={{ background: "#fff0d8" }}>
+    {needsLocationMessage && <div className="admin-message admin-message--warning">
       <span><strong>NEEDS_LOCATION</strong>{needsLocationMessage}</span>
     </div>}
 
@@ -163,7 +163,7 @@ function ConnectedAvailabilityPanel({
         setBusinessRows(nextRows);
         setMessage(null);
       }}/>
-      <div className="button-row" style={{ justifyContent: "flex-end", marginTop: 18 }}>
+      <div className="admin-action-row">
         <button className="button" type="button" onClick={saveBusinessHours} disabled={isPending}>Guardar horario negocio</button>
       </div>
     </section>
@@ -175,7 +175,7 @@ function ConnectedAvailabilityPanel({
           <p>Configura disponibilidad semanal por profesional y sucursal.</p>
         </div>
       </div>
-      <div className="form-grid">
+      <div className="admin-field-grid">
         <label>Profesional<select
           value={data.selectedProfessionalId}
           onChange={(event) => {
@@ -204,7 +204,7 @@ function ConnectedAvailabilityPanel({
         setProfessionalRows(nextRows);
         setMessage(null);
       }}/>
-      <div className="button-row" style={{ justifyContent: "flex-end", marginTop: 18 }}>
+      <div className="admin-action-row">
         <button className="button" type="button" onClick={saveProfessionalAvailability} disabled={isPending || !selectedLocationId}>Guardar disponibilidad profesional</button>
       </div>
     </section>
@@ -217,7 +217,7 @@ function ConnectedAvailabilityPanel({
         </div>
       </div>
       {data.timeOff.length === 0
-        ? <div className="demo-notice"><span><strong>Sin bloqueos activos</strong>No hay timeOff futuro para este profesional o sus sucursales.</span></div>
+        ? <div className="admin-message admin-message--info"><span><strong>Sin bloqueos activos</strong>No hay timeOff futuro para este profesional o sus sucursales.</span></div>
         : <div className="admin-table">
           <div className="table-head"><span>Inicio</span><span>Fin</span><span>Sucursal</span><span>Estado</span></div>
           {data.timeOff.map((entry) => <div className="table-row" key={entry.id}>
@@ -229,7 +229,7 @@ function ConnectedAvailabilityPanel({
         </div>}
     </section>
 
-    {message && <div className="demo-notice" style={{ background: message.type === "success" ? "#e5f1e9" : "#f5e7e6" }}>
+    {message && <div className={`admin-message admin-message--${message.type}`}>
       <span><strong>{message.type === "success" ? "Guardado" : "No se pudo guardar"}</strong>{message.text}</span>
     </div>}
   </div>;
@@ -244,20 +244,19 @@ function ScheduleEditor({
   disabled: boolean;
   onChange: (rows: DayRow[]) => void;
 }) {
-  return <div style={{ display: "grid", gap: 10 }}>
+  return <div className="admin-schedule-editor">
     {rows.map((row) => <div
       key={row.weekday}
-      className="form-grid"
-      style={{ alignItems: "end", borderBottom: "1px solid #ebe9e5", paddingBottom: 10 }}
+      className={`admin-schedule-row ${row.isActive ? "" : "is-inactive"}`}
     >
-      <label style={{ alignItems: "center", display: "flex", flexDirection: "row", gap: 10 }}>
+      <label className="admin-schedule-toggle">
         <input
           type="checkbox"
           checked={row.isActive}
           disabled={disabled}
           onChange={(event) => onChange(updateRow(rows, row.weekday, { isActive: event.target.checked }))}
         />
-        <span>{weekdayLabel(row.weekday)}</span>
+        <span>{weekdayLabel(row.weekday)}<small>{row.isActive ? "Activo" : "Inactivo"}</small></span>
       </label>
       <label>Inicio<input
         type="time"
@@ -294,7 +293,7 @@ function AvailabilityStateNotice({
       </div>
       <span className={`status ${mode === "warning" ? "status--pending" : "status--cancelled"}`}>{status}</span>
     </div>
-    <div className="demo-notice">
+    <div className="admin-message admin-message--warning">
       <span><strong>No se muestran datos demo</strong>Configura el API para operar con horarios reales persistentes.</span>
     </div>
   </section>;
