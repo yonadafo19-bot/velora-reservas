@@ -15,6 +15,10 @@ import type { TenantContext } from "../common/types/request-user";
 
 const ALLOWED_PROFESSIONAL_STATUSES = new Set(["ACTIVE", "INACTIVE", "ARCHIVED"]);
 const ALLOWED_AVAILABILITY_STATUSES = new Set(["ACTIVE", "INACTIVE"]);
+const MAX_PROFESSIONAL_DISPLAY_NAME_LENGTH = 160;
+const MAX_PROFESSIONAL_ROLE_TITLE_LENGTH = 160;
+const MAX_PROFESSIONAL_PHONE_LENGTH = 32;
+const MAX_PROFESSIONAL_EMAIL_LENGTH = 320;
 
 export interface AdminProfessionalCreateRequest {
   displayName: string;
@@ -432,6 +436,10 @@ export class BusinessAdminProfessionalsService {
       });
     }
 
+    if (error.code === "P2000") {
+      return this.invalidInput();
+    }
+
     if (error.code === "P2003" || error.code === "P2025") {
       return new BadRequestException({
         code: "ADMIN_PROFESSIONAL_RELATION_INVALID",
@@ -681,10 +689,10 @@ export class BusinessAdminProfessionalsService {
     return {
       displayName,
       slug: this.slug(body.slug ?? displayName),
-      roleTitle: this.optionalString(body.roleTitle),
+      roleTitle: this.optionalString(body.roleTitle, MAX_PROFESSIONAL_ROLE_TITLE_LENGTH),
       bio: this.optionalString(body.bio),
-      phone: this.optionalString(body.phone),
-      email: this.optionalString(body.email),
+      phone: this.optionalString(body.phone, MAX_PROFESSIONAL_PHONE_LENGTH),
+      email: this.optionalString(body.email, MAX_PROFESSIONAL_EMAIL_LENGTH),
       status: this.professionalStatus(body.status ?? "ACTIVE"),
       sortOrder: this.integer(body.sortOrder ?? 0),
     };
@@ -703,16 +711,16 @@ export class BusinessAdminProfessionalsService {
       input.slug = this.slug(body.slug);
     }
     if (body.roleTitle !== undefined) {
-      input.roleTitle = this.optionalString(body.roleTitle);
+      input.roleTitle = this.optionalString(body.roleTitle, MAX_PROFESSIONAL_ROLE_TITLE_LENGTH);
     }
     if (body.bio !== undefined) {
       input.bio = this.optionalString(body.bio);
     }
     if (body.phone !== undefined) {
-      input.phone = this.optionalString(body.phone);
+      input.phone = this.optionalString(body.phone, MAX_PROFESSIONAL_PHONE_LENGTH);
     }
     if (body.email !== undefined) {
-      input.email = this.optionalString(body.email);
+      input.email = this.optionalString(body.email, MAX_PROFESSIONAL_EMAIL_LENGTH);
     }
     if (body.status !== undefined) {
       input.status = this.professionalStatus(body.status);
@@ -800,13 +808,13 @@ export class BusinessAdminProfessionalsService {
       throw this.invalidInput();
     }
     const normalized = value.trim();
-    if (normalized.length === 0 || normalized.length > 160) {
+    if (normalized.length === 0 || normalized.length > MAX_PROFESSIONAL_DISPLAY_NAME_LENGTH) {
       throw this.invalidInput();
     }
     return normalized;
   }
 
-  private optionalString(value: unknown): string | null {
+  private optionalString(value: unknown, maxLength?: number): string | null {
     if (value === undefined || value === null) {
       return null;
     }
@@ -814,6 +822,9 @@ export class BusinessAdminProfessionalsService {
       throw this.invalidInput();
     }
     const normalized = value.trim();
+    if (maxLength !== undefined && normalized.length > maxLength) {
+      throw this.invalidInput();
+    }
     return normalized.length > 0 ? normalized : null;
   }
 

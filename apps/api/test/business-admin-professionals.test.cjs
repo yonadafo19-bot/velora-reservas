@@ -744,6 +744,47 @@ test("business admin professionals rechaza payload invalido", async () => {
   );
 });
 
+test("business admin professionals rechaza roleTitle mayor al limite Prisma", async () => {
+  const { service } = serviceWithMocks();
+
+  await rejectsWithCode(
+    () => service.createProfessional(tenantContext(), "velora-barberia-demo", {
+      displayName: "Matias Rojas",
+      roleTitle: "x".repeat(161),
+    }),
+    400,
+    "ADMIN_PROFESSIONAL_INVALID_INPUT",
+  );
+});
+
+test("business admin professionals rechaza telefono mayor al limite Prisma", async () => {
+  const { service } = serviceWithMocks();
+
+  await rejectsWithCode(
+    () => service.createProfessional(tenantContext(), "velora-barberia-demo", {
+      displayName: "Matias Rojas",
+      phone: "+".repeat(33),
+    }),
+    400,
+    "ADMIN_PROFESSIONAL_INVALID_INPUT",
+  );
+});
+
+test("business admin professionals rechaza email mayor al limite Prisma", async () => {
+  const { service } = serviceWithMocks();
+
+  await rejectsWithCode(
+    () => service.updateProfessional(
+      tenantContext(),
+      "velora-barberia-demo",
+      "professional-1",
+      { email: "a".repeat(321) },
+    ),
+    400,
+    "ADMIN_PROFESSIONAL_INVALID_INPUT",
+  );
+});
+
 test("business admin professionals rechaza slug duplicado", async () => {
   const { service } = serviceWithMocks({ duplicatedSlug: { id: "professional-2" } });
 
@@ -771,6 +812,23 @@ test("business admin professionals mapea unique Prisma de slug a error controlad
     }),
     400,
     "ADMIN_PROFESSIONAL_SLUG_DUPLICATED",
+  );
+});
+
+test("business admin professionals mapea P2000 Prisma a error controlado", async () => {
+  const { service } = serviceWithMocks({
+    professionalCreateError: {
+      code: "P2000",
+      meta: { column_name: "phone" },
+    },
+  });
+
+  await rejectsWithCode(
+    () => service.createProfessional(tenantContext(), "velora-barberia-demo", {
+      displayName: "Matias Rojas",
+    }),
+    400,
+    "ADMIN_PROFESSIONAL_INVALID_INPUT",
   );
 });
 
