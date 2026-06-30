@@ -61,6 +61,9 @@ function serviceWithMocks(options = {}) {
     professionalLocationUpdateMany: [],
     professionalLocationCreate: [],
     professionalLocationUpsert: [],
+    businessHourFindMany: [],
+    professionalAvailabilityRuleFindFirst: [],
+    professionalAvailabilityRuleCreate: [],
   };
   const rows = {
     existingProfessional: Object.prototype.hasOwnProperty.call(options, "existingProfessional")
@@ -87,6 +90,9 @@ function serviceWithMocks(options = {}) {
           status: "ACTIVE",
         },
       ],
+    businessHoursByLocation: options.businessHoursByLocation ?? {},
+    globalBusinessHours: options.globalBusinessHours ?? [],
+    existingAvailabilityRule: options.existingAvailabilityRule ?? null,
     response: options.response ?? professionalRow(),
   };
   const transaction = {
@@ -171,6 +177,25 @@ function serviceWithMocks(options = {}) {
         }
         calls.professionalLocationUpsert.push(query);
         return { id: "professional-location-1" };
+      },
+    },
+    businessHour: {
+      findMany: async (query) => {
+        calls.businessHourFindMany.push(query);
+        if (query.where?.locationId === null) {
+          return rows.globalBusinessHours;
+        }
+        return rows.businessHoursByLocation[query.where?.locationId] ?? [];
+      },
+    },
+    professionalAvailabilityRule: {
+      findFirst: async (query) => {
+        calls.professionalAvailabilityRuleFindFirst.push(query);
+        return rows.existingAvailabilityRule;
+      },
+      create: async (query) => {
+        calls.professionalAvailabilityRuleCreate.push(query);
+        return { id: `availability-rule-${calls.professionalAvailabilityRuleCreate.length}` };
       },
     },
   };
@@ -366,6 +391,141 @@ test("business admin professionals crea profesional compuesto para belleza tenan
   });
   assert.deepEqual(response.services, [{ id: "beauty-service-1", name: "Manicure spa" }]);
   assert.equal(response.locations[0].id, "beauty-location-1");
+});
+
+test("business admin professionals crea disponibilidad inicial para profesional belleza nuevo", async () => {
+  const { service, calls } = serviceWithMocks({
+    services: [{ id: "beauty-service-1" }],
+    locations: [{ id: "beauty-location-1" }],
+    businessHoursByLocation: {
+      "beauty-location-1": [
+        {
+          weekday: "MONDAY",
+          opensAtLocal: "09:00",
+          closesAtLocal: "18:00",
+        },
+        {
+          weekday: "TUESDAY",
+          opensAtLocal: "10:00",
+          closesAtLocal: "19:00",
+        },
+      ],
+    },
+  });
+
+  await service.createProfessional(
+    tenantContext({
+      businessId: "seed-beauty-business-main",
+      businessSlug: "velora-beauty-studio-demo",
+      businessName: "Velora Beauty Studio Demo",
+      businessVertical: "BEAUTY_STUDIO",
+    }),
+    "velora-beauty-studio-demo",
+    {
+      displayName: "Sofia Araya",
+      roleTitle: "Nail artist",
+      status: "ACTIVE",
+      serviceIds: ["beauty-service-1"],
+      locationIds: ["beauty-location-1"],
+    },
+  );
+
+  assert.deepEqual(calls.professionalAvailabilityRuleFindFirst[0].where, {
+    businessId: "seed-beauty-business-main",
+    professionalId: "professional-1",
+    locationId: "beauty-location-1",
+    status: "ACTIVE",
+  });
+  assert.deepEqual(calls.businessHourFindMany[0].where, {
+    businessId: "seed-beauty-business-main",
+    locationId: "beauty-location-1",
+    status: "ACTIVE",
+  });
+  assert.equal(calls.professionalAvailabilityRuleCreate.length, 2);
+  assert.deepEqual(calls.professionalAvailabilityRuleCreate[0].data, {
+    businessId: "seed-beauty-business-main",
+    professionalId: "professional-1",
+    locationId: "beauty-location-1",
+    weekday: "MONDAY",
+    startsAtLocal: "09:00",
+    endsAtLocal: "18:00",
+    status: "ACTIVE",
+  });
+});
+
+test("business admin professionals usa horario global si la sucursal no tiene horario propio", async () => {
+  const { service, calls } = serviceWithMocks({
+    globalBusinessHours: [
+      {
+        weekday: "WEDNESDAY",
+        opensAtLocal: "11:00",
+        closesAtLocal: "17:00",
+      },
+    ],
+  });
+
+  await service.replaceProfessionalLocations(
+    tenantContext(),
+    "velora-barberia-demo",
+    "professional-1",
+    { locationIds: ["location-1"] },
+  );
+
+  assert.deepEqual(calls.businessHourFindMany.map((query) => query.where.locationId), [
+    "location-1",
+    null,
+  ]);
+  assert.deepEqual(calls.professionalAvailabilityRuleCreate[0].data, {
+    businessId: "business-tenant-1",
+    professionalId: "professional-1",
+    locationId: "location-1",
+    weekday: "WEDNESDAY",
+    startsAtLocal: "11:00",
+    endsAtLocal: "17:00",
+    status: "ACTIVE",
+  });
+});
+
+test("business admin professionals no duplica ni sobrescribe disponibilidad activa existente", async () => {
+  const { service, calls } = serviceWithMocks({
+    existingAvailabilityRule: { id: "availability-rule-existing" },
+    businessHoursByLocation: {
+      "location-1": [
+        {
+          weekday: "MONDAY",
+          opensAtLocal: "09:00",
+          closesAtLocal: "18:00",
+        },
+      ],
+    },
+  });
+
+  await service.replaceProfessionalLocations(
+    tenantContext(),
+    "velora-barberia-demo",
+    "professional-1",
+    { locationIds: ["location-1"] },
+  );
+
+  assert.equal(calls.businessHourFindMany.length, 0);
+  assert.equal(calls.professionalAvailabilityRuleCreate.length, 0);
+});
+
+test("business admin professionals no crea disponibilidad falsa sin horario de negocio aplicable", async () => {
+  const { service, calls } = serviceWithMocks();
+
+  await service.replaceProfessionalLocations(
+    tenantContext(),
+    "velora-barberia-demo",
+    "professional-1",
+    { locationIds: ["location-1"] },
+  );
+
+  assert.deepEqual(calls.businessHourFindMany.map((query) => query.where.locationId), [
+    "location-1",
+    null,
+  ]);
+  assert.equal(calls.professionalAvailabilityRuleCreate.length, 0);
 });
 
 test("business admin professionals lista ubicaciones activas tenant-safe", async () => {

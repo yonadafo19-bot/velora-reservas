@@ -319,7 +319,83 @@ export class BusinessAdminProfessionalsService {
           status: "ACTIVE",
         },
       });
+      await this.ensureInitialProfessionalAvailability(
+        transaction,
+        businessId,
+        professionalId,
+        locationId,
+      );
     }
+  }
+
+  private async ensureInitialProfessionalAvailability(
+    transaction: PrismaTransaction,
+    businessId: string,
+    professionalId: string,
+    locationId: string,
+  ) {
+    const existingActiveRule = await transaction.professionalAvailabilityRule.findFirst({
+      where: {
+        businessId,
+        professionalId,
+        locationId,
+        status: "ACTIVE",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingActiveRule) {
+      return;
+    }
+
+    const locationHours = await this.findActiveBusinessHours(
+      transaction,
+      businessId,
+      locationId,
+    );
+    const sourceHours = locationHours.length > 0
+      ? locationHours
+      : await this.findActiveBusinessHours(transaction, businessId, null);
+
+    for (const hour of sourceHours) {
+      await transaction.professionalAvailabilityRule.create({
+        data: {
+          businessId,
+          professionalId,
+          locationId,
+          weekday: hour.weekday,
+          startsAtLocal: hour.opensAtLocal,
+          endsAtLocal: hour.closesAtLocal,
+          status: "ACTIVE",
+        },
+      });
+    }
+  }
+
+  private async findActiveBusinessHours(
+    transaction: PrismaTransaction,
+    businessId: string,
+    locationId: string | null,
+  ) {
+    return transaction.businessHour.findMany({
+      where: {
+        businessId,
+        locationId,
+        status: "ACTIVE",
+      },
+      select: {
+        weekday: true,
+        opensAtLocal: true,
+        closesAtLocal: true,
+      },
+      orderBy: [
+        { weekday: "asc" },
+        { opensAtLocal: "asc" },
+        { id: "asc" },
+      ],
+    });
   }
 
   private async withKnownPrismaErrors<T>(operation: Promise<T>): Promise<T> {
