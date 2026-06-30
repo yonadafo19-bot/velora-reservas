@@ -62,8 +62,9 @@ function serviceWithMocks(options = {}) {
     professionalLocationCreate: [],
     professionalLocationUpsert: [],
     businessHourFindMany: [],
-    professionalAvailabilityRuleFindFirst: [],
+    professionalAvailabilityRuleFindMany: [],
     professionalAvailabilityRuleCreateMany: [],
+    readsInsideTransaction: [],
   };
   const rows = {
     existingProfessional: Object.prototype.hasOwnProperty.call(options, "existingProfessional")
@@ -95,9 +96,16 @@ function serviceWithMocks(options = {}) {
     existingAvailabilityRule: options.existingAvailabilityRule ?? null,
     response: options.response ?? professionalRow(),
   };
+  let insideTransaction = false;
+  const trackRead = (name) => {
+    if (insideTransaction) {
+      calls.readsInsideTransaction.push(name);
+    }
+  };
   const transaction = {
     professional: {
       findFirst: async (query) => {
+        trackRead("professional.findFirst");
         calls.professionalFindFirst.push(query);
         if (query.where?.slug) {
           return rows.duplicatedSlug;
@@ -124,12 +132,14 @@ function serviceWithMocks(options = {}) {
     },
     service: {
       findMany: async (query) => {
+        trackRead("service.findMany");
         calls.serviceFindMany = query;
         return rows.services;
       },
     },
     location: {
       findMany: async (query) => {
+        trackRead("location.findMany");
         calls.locationFindMany = query;
         if (query.select?.slug) {
           return rows.locationRows;
@@ -181,17 +191,40 @@ function serviceWithMocks(options = {}) {
     },
     businessHour: {
       findMany: async (query) => {
+        trackRead("businessHour.findMany");
         calls.businessHourFindMany.push(query);
-        if (query.where?.locationId === null) {
-          return rows.globalBusinessHours;
+        if (Array.isArray(query.where?.OR)) {
+          const requestedLocationIds = query.where.OR
+            .flatMap((clause) => clause.locationId?.in ?? []);
+          const includeGlobal = query.where.OR.some((clause) => clause.locationId === null);
+          return [
+            ...requestedLocationIds.flatMap((locationId) => (
+              rows.businessHoursByLocation[locationId] ?? []
+            ).map((hour) => ({ ...hour, locationId }))),
+            ...(includeGlobal
+              ? rows.globalBusinessHours.map((hour) => ({ ...hour, locationId: null }))
+              : []),
+          ];
         }
-        return rows.businessHoursByLocation[query.where?.locationId] ?? [];
+        if (query.where?.locationId === null) {
+          return rows.globalBusinessHours.map((hour) => ({ ...hour, locationId: null }));
+        }
+        return (rows.businessHoursByLocation[query.where?.locationId] ?? [])
+          .map((hour) => ({ ...hour, locationId: query.where?.locationId }));
       },
     },
     professionalAvailabilityRule: {
-      findFirst: async (query) => {
-        calls.professionalAvailabilityRuleFindFirst.push(query);
-        return rows.existingAvailabilityRule;
+      findMany: async (query) => {
+        trackRead("professionalAvailabilityRule.findMany");
+        calls.professionalAvailabilityRuleFindMany.push(query);
+        if (Object.prototype.hasOwnProperty.call(options, "existingAvailabilityRules")) {
+          return options.existingAvailabilityRules;
+        }
+        if (rows.existingAvailabilityRule) {
+          const locationId = query.where?.locationId?.in?.[0] ?? "location-1";
+          return [{ ...rows.existingAvailabilityRule, locationId }];
+        }
+        return [];
       },
       create: async (query) => {
         throw new Error(`professionalAvailabilityRule.create no debe usarse para disponibilidad inicial: ${JSON.stringify(query)}`);
@@ -208,12 +241,24 @@ function serviceWithMocks(options = {}) {
   const transactions = {
     runInTransaction: async (callback) => {
       calls.transactionStarted = true;
-      return callback(transaction);
+      insideTransaction = true;
+      try {
+        const result = await callback(transaction);
+        if (options.transactionCommitError) {
+          throw options.transactionCommitError;
+        }
+        return result;
+      } finally {
+        insideTransaction = false;
+      }
     },
+  };
+  const database = {
+    getClient: () => transaction,
   };
 
   return {
-    service: new BusinessAdminProfessionalsService(transactions),
+    service: new BusinessAdminProfessionalsService(transactions, database),
     calls,
   };
 }
@@ -436,17 +481,22 @@ test("business admin professionals crea disponibilidad inicial para profesional 
     },
   );
 
-  assert.deepEqual(calls.professionalAvailabilityRuleFindFirst[0].where, {
-    businessId: "seed-beauty-business-main",
-    professionalId: "professional-1",
-    locationId: "beauty-location-1",
-    status: "ACTIVE",
-  });
+  assert.deepEqual(calls.professionalAvailabilityRuleFindMany, []);
   assert.deepEqual(calls.businessHourFindMany[0].where, {
     businessId: "seed-beauty-business-main",
-    locationId: "beauty-location-1",
     status: "ACTIVE",
+    OR: [
+      {
+        locationId: {
+          in: ["beauty-location-1"],
+        },
+      },
+      {
+        locationId: null,
+      },
+    ],
   });
+  assert.deepEqual(calls.readsInsideTransaction, []);
   assert.equal(calls.professionalAvailabilityRuleCreateMany.length, 1);
   assert.deepEqual(calls.professionalAvailabilityRuleCreateMany[0].data, [
     {
@@ -488,10 +538,17 @@ test("business admin professionals usa horario global si la sucursal no tiene ho
     { locationIds: ["location-1"] },
   );
 
-  assert.deepEqual(calls.businessHourFindMany.map((query) => query.where.locationId), [
-    "location-1",
-    null,
+  assert.deepEqual(calls.businessHourFindMany[0].where.OR, [
+    {
+      locationId: {
+        in: ["location-1"],
+      },
+    },
+    {
+      locationId: null,
+    },
   ]);
+  assert.deepEqual(calls.readsInsideTransaction, []);
   assert.equal(calls.professionalAvailabilityRuleCreateMany.length, 1);
   assert.deepEqual(calls.professionalAvailabilityRuleCreateMany[0].data, [
     {
@@ -528,6 +585,15 @@ test("business admin professionals no duplica ni sobrescribe disponibilidad acti
   );
 
   assert.equal(calls.businessHourFindMany.length, 0);
+  assert.deepEqual(calls.professionalAvailabilityRuleFindMany[0].where, {
+    businessId: "business-tenant-1",
+    professionalId: "professional-1",
+    locationId: {
+      in: ["location-1"],
+    },
+    status: "ACTIVE",
+  });
+  assert.deepEqual(calls.readsInsideTransaction, []);
   assert.equal(calls.professionalAvailabilityRuleCreateMany.length, 0);
 });
 
@@ -541,10 +607,17 @@ test("business admin professionals no crea disponibilidad falsa sin horario de n
     { locationIds: ["location-1"] },
   );
 
-  assert.deepEqual(calls.businessHourFindMany.map((query) => query.where.locationId), [
-    "location-1",
-    null,
+  assert.deepEqual(calls.businessHourFindMany[0].where.OR, [
+    {
+      locationId: {
+        in: ["location-1"],
+      },
+    },
+    {
+      locationId: null,
+    },
   ]);
+  assert.deepEqual(calls.readsInsideTransaction, []);
   assert.equal(calls.professionalAvailabilityRuleCreateMany.length, 0);
 });
 
@@ -581,6 +654,55 @@ test("business admin professionals propaga timeout P2028 al crear disponibilidad
       && error.meta.modelName === "ProfessionalAvailabilityRule"
       && error.meta.timeout === 5000,
   );
+});
+
+test("business admin professionals propaga P2028 de commit sin marcar exito", async () => {
+  const timeoutError = new Error("A commit cannot be executed on an expired transaction");
+  timeoutError.code = "P2028";
+  timeoutError.meta = {
+    operation: "commit",
+    timeout: 5000,
+    timeTaken: 7952,
+  };
+  const { service, calls } = serviceWithMocks({
+    businessHoursByLocation: {
+      "beauty-location-1": [
+        {
+          weekday: "MONDAY",
+          opensAtLocal: "09:00",
+          closesAtLocal: "18:00",
+        },
+      ],
+    },
+    locations: [{ id: "beauty-location-1" }],
+    services: [{ id: "beauty-service-1" }],
+    transactionCommitError: timeoutError,
+  });
+
+  await assert.rejects(
+    () => service.createProfessional(
+      tenantContext({
+        businessId: "seed-beauty-business-main",
+        businessSlug: "velora-beauty-studio-demo",
+        businessName: "Velora Beauty Studio Demo",
+        businessVertical: "BEAUTY_STUDIO",
+      }),
+      "velora-beauty-studio-demo",
+      {
+        displayName: "Sofia Araya",
+        roleTitle: "Nail artist",
+        status: "ACTIVE",
+        serviceIds: ["beauty-service-1"],
+        locationIds: ["beauty-location-1"],
+      },
+    ),
+    (error) => error.code === "P2028"
+      && error.meta.operation === "commit"
+      && error.meta.timeTaken === 7952,
+  );
+
+  assert.equal(calls.transactionStarted, true);
+  assert.deepEqual(calls.readsInsideTransaction, []);
 });
 
 test("business admin professionals lista ubicaciones activas tenant-safe", async () => {

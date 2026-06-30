@@ -7,8 +7,10 @@ import {
 import type {
   AvailabilityStatus as PrismaAvailabilityStatus,
   ProfessionalStatus as PrismaProfessionalStatus,
+  Weekday as PrismaWeekday,
 } from "@velora/database";
 
+import { DatabaseService } from "../common/database/database.service";
 import type { PrismaTransaction } from "../common/database/prisma-transaction";
 import { TransactionService } from "../common/database/transaction.service";
 import type { TenantContext } from "../common/types/request-user";
@@ -19,6 +21,18 @@ const MAX_PROFESSIONAL_DISPLAY_NAME_LENGTH = 160;
 const MAX_PROFESSIONAL_ROLE_TITLE_LENGTH = 160;
 const MAX_PROFESSIONAL_PHONE_LENGTH = 32;
 const MAX_PROFESSIONAL_EMAIL_LENGTH = 320;
+
+type PrismaReadClient = Pick<
+  PrismaTransaction,
+  "businessHour" | "location" | "professional" | "professionalAvailabilityRule" | "service"
+>;
+
+type InitialAvailabilityRule = {
+  locationId: string;
+  weekday: PrismaWeekday;
+  startsAtLocal: string;
+  endsAtLocal: string;
+};
 
 export interface AdminProfessionalCreateRequest {
   displayName: string;
@@ -56,7 +70,10 @@ export interface AdminProfessionalLocationsReplaceRequest {
 
 @Injectable()
 export class BusinessAdminProfessionalsService {
-  constructor(private readonly transactions: TransactionService) {}
+  constructor(
+    private readonly transactions: TransactionService,
+    private readonly database: DatabaseService,
+  ) {}
 
   async listLocations(tenant: TenantContext, businessSlug: string) {
     this.assertTenantSlug(tenant, businessSlug);
@@ -101,46 +118,60 @@ export class BusinessAdminProfessionalsService {
     const input = this.validateCreateInput(body);
     const assignments = this.validateOptionalAssignments(body);
 
-    return this.withKnownPrismaErrors(this.transactions.runInTransaction(async (transaction) => {
-      await this.assertSlugAvailable(transaction, tenant.businessId, input.slug);
-      await this.assertOptionalAssignmentsAvailable(transaction, tenant.businessId, assignments);
+    return this.withKnownPrismaErrors((async () => {
+      const client = this.database.getClient();
+      await this.assertSlugAvailable(client, tenant.businessId, input.slug);
+      await this.assertOptionalAssignmentsAvailable(client, tenant.businessId, assignments);
+      const initialAvailabilityRules = assignments.locationIds !== undefined
+        ? await this.buildInitialAvailabilityRules(
+          client,
+          tenant.businessId,
+          null,
+          assignments.locationIds,
+        )
+        : [];
 
-      const created = await transaction.professional.create({
-        data: {
-          businessId: tenant.businessId,
-          displayName: input.displayName,
-          slug: input.slug,
-          roleTitle: input.roleTitle,
-          bio: input.bio,
-          phone: input.phone,
-          email: input.email,
-          status: input.status,
-          sortOrder: input.sortOrder,
-        },
-        select: {
-          id: true,
-        },
+      const createdId = await this.transactions.runInTransaction(async (transaction) => {
+        const created = await transaction.professional.create({
+          data: {
+            businessId: tenant.businessId,
+            displayName: input.displayName,
+            slug: input.slug,
+            roleTitle: input.roleTitle,
+            bio: input.bio,
+            phone: input.phone,
+            email: input.email,
+            status: input.status,
+            sortOrder: input.sortOrder,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        if (assignments.serviceIds !== undefined) {
+          await this.writeProfessionalServices(
+            transaction,
+            tenant.businessId,
+            created.id,
+            assignments.serviceIds,
+          );
+        }
+        if (assignments.locationIds !== undefined) {
+          await this.writeProfessionalLocations(
+            transaction,
+            tenant.businessId,
+            created.id,
+            assignments.locationIds,
+            initialAvailabilityRules,
+          );
+        }
+
+        return created.id;
       });
 
-      if (assignments.serviceIds !== undefined) {
-        await this.writeProfessionalServices(
-          transaction,
-          tenant.businessId,
-          created.id,
-          assignments.serviceIds,
-        );
-      }
-      if (assignments.locationIds !== undefined) {
-        await this.writeProfessionalLocations(
-          transaction,
-          tenant.businessId,
-          created.id,
-          assignments.locationIds,
-        );
-      }
-
-      return this.getProfessionalResponse(transaction, tenant.businessId, created.id);
-    }));
+      return this.getProfessionalResponse(client, tenant.businessId, createdId);
+    })());
   }
 
   async updateProfessional(
@@ -159,51 +190,65 @@ export class BusinessAdminProfessionalsService {
       throw this.invalidInput();
     }
 
-    return this.withKnownPrismaErrors(this.transactions.runInTransaction(async (transaction) => {
+    return this.withKnownPrismaErrors((async () => {
+      const client = this.database.getClient();
       const existing = await this.getExistingProfessional(
-        transaction,
+        client,
         tenant.businessId,
         professionalId,
       );
 
       if (typeof input.slug === "string" && input.slug !== existing.slug) {
-        await this.assertSlugAvailable(transaction, tenant.businessId, input.slug, existing.id);
+        await this.assertSlugAvailable(client, tenant.businessId, input.slug, existing.id);
       }
-      await this.assertOptionalAssignmentsAvailable(transaction, tenant.businessId, assignments);
-
-      if (hasProfessionalInput) {
-        const updated = await transaction.professional.updateMany({
-          where: {
-            id: professionalId,
-            businessId: tenant.businessId,
-          },
-          data: input,
-        });
-
-        if (updated.count !== 1) {
-          throw this.professionalNotFound();
-        }
-      }
-
-      if (assignments.serviceIds !== undefined) {
-        await this.writeProfessionalServices(
-          transaction,
-          tenant.businessId,
-          professionalId,
-          assignments.serviceIds,
-        );
-      }
-      if (assignments.locationIds !== undefined) {
-        await this.writeProfessionalLocations(
-          transaction,
+      await this.assertOptionalAssignmentsAvailable(client, tenant.businessId, assignments);
+      const initialAvailabilityRules = assignments.locationIds !== undefined
+        ? await this.buildInitialAvailabilityRules(
+          client,
           tenant.businessId,
           professionalId,
           assignments.locationIds,
-        );
-      }
+        )
+        : [];
 
-      return this.getProfessionalResponse(transaction, tenant.businessId, professionalId);
-    }));
+      await this.transactions.runInTransaction(async (transaction) => {
+        if (hasProfessionalInput) {
+          const updated = await transaction.professional.updateMany({
+            where: {
+              id: professionalId,
+              businessId: tenant.businessId,
+            },
+            data: input,
+          });
+
+          if (updated.count !== 1) {
+            throw this.professionalNotFound();
+          }
+        }
+
+        if (assignments.serviceIds !== undefined) {
+          await this.writeProfessionalServices(
+            transaction,
+            tenant.businessId,
+            professionalId,
+            assignments.serviceIds,
+          );
+        }
+        if (assignments.locationIds !== undefined) {
+          await this.writeProfessionalLocations(
+            transaction,
+            tenant.businessId,
+            professionalId,
+            assignments.locationIds,
+            initialAvailabilityRules,
+          );
+        }
+
+        return professionalId;
+      });
+
+      return this.getProfessionalResponse(client, tenant.businessId, professionalId);
+    })());
   }
 
   async replaceProfessionalServices(
@@ -215,13 +260,17 @@ export class BusinessAdminProfessionalsService {
     this.assertTenantSlug(tenant, businessSlug);
     const serviceIds = this.validateServiceIdsInput(body);
 
-    return this.withKnownPrismaErrors(this.transactions.runInTransaction(async (transaction) => {
-      await this.getExistingProfessional(transaction, tenant.businessId, professionalId);
-      await this.assertServicesAvailable(transaction, tenant.businessId, serviceIds);
-      await this.writeProfessionalServices(transaction, tenant.businessId, professionalId, serviceIds);
+    return this.withKnownPrismaErrors((async () => {
+      const client = this.database.getClient();
+      await this.getExistingProfessional(client, tenant.businessId, professionalId);
+      await this.assertServicesAvailable(client, tenant.businessId, serviceIds);
 
-      return this.getProfessionalResponse(transaction, tenant.businessId, professionalId);
-    }));
+      await this.transactions.runInTransaction(async (transaction) => {
+        await this.writeProfessionalServices(transaction, tenant.businessId, professionalId, serviceIds);
+      });
+
+      return this.getProfessionalResponse(client, tenant.businessId, professionalId);
+    })());
   }
 
   async replaceProfessionalLocations(
@@ -233,13 +282,29 @@ export class BusinessAdminProfessionalsService {
     this.assertTenantSlug(tenant, businessSlug);
     const locationIds = this.validateLocationIdsInput(body);
 
-    return this.withKnownPrismaErrors(this.transactions.runInTransaction(async (transaction) => {
-      await this.getExistingProfessional(transaction, tenant.businessId, professionalId);
-      await this.assertLocationsAvailable(transaction, tenant.businessId, locationIds);
-      await this.writeProfessionalLocations(transaction, tenant.businessId, professionalId, locationIds);
+    return this.withKnownPrismaErrors((async () => {
+      const client = this.database.getClient();
+      await this.getExistingProfessional(client, tenant.businessId, professionalId);
+      await this.assertLocationsAvailable(client, tenant.businessId, locationIds);
+      const initialAvailabilityRules = await this.buildInitialAvailabilityRules(
+        client,
+        tenant.businessId,
+        professionalId,
+        locationIds,
+      );
 
-      return this.getProfessionalResponse(transaction, tenant.businessId, professionalId);
-    }));
+      await this.transactions.runInTransaction(async (transaction) => {
+        await this.writeProfessionalLocations(
+          transaction,
+          tenant.businessId,
+          professionalId,
+          locationIds,
+          initialAvailabilityRules,
+        );
+      });
+
+      return this.getProfessionalResponse(client, tenant.businessId, professionalId);
+    })());
   }
 
   private async writeProfessionalServices(
@@ -289,6 +354,7 @@ export class BusinessAdminProfessionalsService {
     businessId: string,
     professionalId: string,
     locationIds: string[],
+    initialAvailabilityRules: InitialAvailabilityRule[] = [],
   ) {
     await transaction.professionalLocation.updateMany({
       where: {
@@ -323,85 +389,121 @@ export class BusinessAdminProfessionalsService {
           status: "ACTIVE",
         },
       });
-      await this.ensureInitialProfessionalAvailability(
-        transaction,
-        businessId,
-        professionalId,
-        locationId,
-      );
+    }
+
+    if (initialAvailabilityRules.length > 0) {
+      await transaction.professionalAvailabilityRule.createMany({
+        data: initialAvailabilityRules.map((rule) => ({
+          businessId,
+          professionalId,
+          locationId: rule.locationId,
+          weekday: rule.weekday,
+          startsAtLocal: rule.startsAtLocal,
+          endsAtLocal: rule.endsAtLocal,
+          status: "ACTIVE" as const,
+        })),
+      });
     }
   }
 
-  private async ensureInitialProfessionalAvailability(
-    transaction: PrismaTransaction,
+  private async buildInitialAvailabilityRules(
+    client: PrismaReadClient,
     businessId: string,
-    professionalId: string,
-    locationId: string,
-  ) {
-    const existingActiveRule = await transaction.professionalAvailabilityRule.findFirst({
-      where: {
-        businessId,
-        professionalId,
-        locationId,
-        status: "ACTIVE",
-      },
-      select: {
-        id: true,
-      },
-    });
+    professionalId: string | null,
+    locationIds: string[],
+  ): Promise<InitialAvailabilityRule[]> {
+    const existingActiveLocationIds = new Set<string>();
 
-    if (existingActiveRule) {
-      return;
+    if (professionalId) {
+      const existingRules = await client.professionalAvailabilityRule.findMany({
+        where: {
+          businessId,
+          professionalId,
+          locationId: {
+            in: locationIds,
+          },
+          status: "ACTIVE",
+        },
+        select: {
+          locationId: true,
+        },
+      });
+
+      for (const rule of existingRules) {
+        existingActiveLocationIds.add(rule.locationId);
+      }
     }
 
-    const locationHours = await this.findActiveBusinessHours(
-      transaction,
-      businessId,
-      locationId,
-    );
-    const sourceHours = locationHours.length > 0
-      ? locationHours
-      : await this.findActiveBusinessHours(transaction, businessId, null);
+    const candidateLocationIds = locationIds.filter((locationId) => (
+      !existingActiveLocationIds.has(locationId)
+    ));
 
-    if (sourceHours.length === 0) {
-      return;
+    if (candidateLocationIds.length === 0) {
+      return [];
     }
 
-    await transaction.professionalAvailabilityRule.createMany({
-      data: sourceHours.map((hour) => ({
-        businessId,
-        professionalId,
-        locationId,
-        weekday: hour.weekday,
-        startsAtLocal: hour.opensAtLocal,
-        endsAtLocal: hour.closesAtLocal,
-        status: "ACTIVE" as const,
-      })),
-    });
-  }
-
-  private async findActiveBusinessHours(
-    transaction: PrismaTransaction,
-    businessId: string,
-    locationId: string | null,
-  ) {
-    return transaction.businessHour.findMany({
+    const activeHours = await client.businessHour.findMany({
       where: {
         businessId,
-        locationId,
         status: "ACTIVE",
+        OR: [
+          {
+            locationId: {
+              in: candidateLocationIds,
+            },
+          },
+          {
+            locationId: null,
+          },
+        ],
       },
       select: {
+        locationId: true,
         weekday: true,
         opensAtLocal: true,
         closesAtLocal: true,
       },
       orderBy: [
+        { locationId: "asc" },
         { weekday: "asc" },
         { opensAtLocal: "asc" },
         { id: "asc" },
       ],
     });
+
+    const globalHours: InitialAvailabilityRule[] = [];
+    const hoursByLocation = new Map<string, InitialAvailabilityRule[]>();
+
+    for (const hour of activeHours) {
+      const rule = {
+        locationId: hour.locationId ?? "",
+        weekday: hour.weekday,
+        startsAtLocal: hour.opensAtLocal,
+        endsAtLocal: hour.closesAtLocal,
+      };
+
+      if (hour.locationId === null) {
+        globalHours.push(rule);
+        continue;
+      }
+
+      const rules = hoursByLocation.get(hour.locationId) ?? [];
+      rules.push({ ...rule, locationId: hour.locationId });
+      hoursByLocation.set(hour.locationId, rules);
+    }
+
+    const initialRules: InitialAvailabilityRule[] = [];
+    for (const locationId of candidateLocationIds) {
+      const sourceHours = hoursByLocation.get(locationId) ?? globalHours;
+      for (const hour of sourceHours) {
+        initialRules.push({
+          ...hour,
+          locationId,
+        });
+      }
+    }
+
+    return initialRules;
   }
 
   private async withKnownPrismaErrors<T>(operation: Promise<T>): Promise<T> {
@@ -470,7 +572,7 @@ export class BusinessAdminProfessionalsService {
   }
 
   private async getExistingProfessional(
-    transaction: PrismaTransaction,
+    transaction: PrismaReadClient,
     businessId: string,
     professionalId: string,
   ) {
@@ -493,7 +595,7 @@ export class BusinessAdminProfessionalsService {
   }
 
   private async getProfessionalResponse(
-    transaction: PrismaTransaction,
+    transaction: PrismaReadClient,
     businessId: string,
     professionalId: string,
   ) {
@@ -587,7 +689,7 @@ export class BusinessAdminProfessionalsService {
   }
 
   private async assertSlugAvailable(
-    transaction: PrismaTransaction,
+    transaction: PrismaReadClient,
     businessId: string,
     slug: string,
     ignoreProfessionalId?: string,
@@ -612,7 +714,7 @@ export class BusinessAdminProfessionalsService {
   }
 
   private async assertServicesAvailable(
-    transaction: PrismaTransaction,
+    transaction: PrismaReadClient,
     businessId: string,
     serviceIds: string[],
   ) {
@@ -639,7 +741,7 @@ export class BusinessAdminProfessionalsService {
   }
 
   private async assertLocationsAvailable(
-    transaction: PrismaTransaction,
+    transaction: PrismaReadClient,
     businessId: string,
     locationIds: string[],
   ) {
@@ -666,7 +768,7 @@ export class BusinessAdminProfessionalsService {
   }
 
   private async assertOptionalAssignmentsAvailable(
-    transaction: PrismaTransaction,
+    transaction: PrismaReadClient,
     businessId: string,
     assignments: {
       serviceIds?: string[];
