@@ -1,8 +1,25 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Put, Query } from "@nestjs/common";
 
 import type { TenantContext } from "../common/types/request-user";
 import { CurrentTenant } from "../tenancy/current-tenant.decorator";
 import { RequireTenant } from "../tenancy/require-tenant.decorator";
+import {
+  BusinessAdminAvailabilityService,
+  type AdminBusinessHoursReplaceRequest,
+  type AdminProfessionalAvailabilityReplaceRequest,
+} from "./business-admin-availability.service";
+import {
+  BusinessAdminProfessionalsService,
+  type AdminProfessionalCreateRequest,
+  type AdminProfessionalLocationsReplaceRequest,
+  type AdminProfessionalServicesReplaceRequest,
+  type AdminProfessionalUpdateRequest,
+} from "./business-admin-professionals.service";
+import {
+  BusinessAdminServicesService,
+  type AdminServiceCreateRequest,
+  type AdminServiceUpdateRequest,
+} from "./business-admin-services.service";
 import {
   BusinessAppointmentCreateService,
   type CreateAppointmentRequest,
@@ -24,6 +41,9 @@ import { BusinessServicesService } from "./business-services.service";
 export class BusinessesController {
   constructor(
     private readonly businessOverview: BusinessOverviewService,
+    private readonly businessAdminServices: BusinessAdminServicesService,
+    private readonly businessAdminProfessionals: BusinessAdminProfessionalsService,
+    private readonly businessAdminAvailability: BusinessAdminAvailabilityService,
     private readonly businessServices: BusinessServicesService,
     private readonly businessProfessionals: BusinessProfessionalsService,
     private readonly businessProfessionalAvailability: BusinessProfessionalAvailabilityService,
@@ -47,10 +67,98 @@ export class BusinessesController {
     return this.businessServices.listServices(tenant);
   }
 
+  @Get(":businessSlug/locations")
+  @RequireTenant()
+  locations(
+    @CurrentTenant() tenant: TenantContext,
+    @Param("businessSlug") businessSlug: string,
+  ) {
+    return this.businessAdminProfessionals.listLocations(tenant, businessSlug);
+  }
+
+  @Post(":businessSlug/services")
+  @RequireTenant()
+  createService(
+    @CurrentTenant() tenant: TenantContext,
+    @Param("businessSlug") businessSlug: string,
+    @Body() body: AdminServiceCreateRequest,
+  ) {
+    return this.businessAdminServices.createService(tenant, businessSlug, body);
+  }
+
+  @Patch(":businessSlug/services/:serviceId")
+  @RequireTenant()
+  updateService(
+    @CurrentTenant() tenant: TenantContext,
+    @Param("businessSlug") businessSlug: string,
+    @Param("serviceId") serviceId: string,
+    @Body() body: AdminServiceUpdateRequest,
+  ) {
+    return this.businessAdminServices.updateService(tenant, businessSlug, serviceId, body);
+  }
+
   @Get(":businessSlug/professionals")
   @RequireTenant()
   professionals(@CurrentTenant() tenant: TenantContext) {
     return this.businessProfessionals.listProfessionals(tenant);
+  }
+
+  @Post(":businessSlug/professionals")
+  @RequireTenant()
+  createProfessional(
+    @CurrentTenant() tenant: TenantContext,
+    @Param("businessSlug") businessSlug: string,
+    @Body() body: AdminProfessionalCreateRequest,
+  ) {
+    return this.businessAdminProfessionals.createProfessional(tenant, businessSlug, body);
+  }
+
+  @Patch(":businessSlug/professionals/:professionalId")
+  @RequireTenant()
+  updateProfessional(
+    @CurrentTenant() tenant: TenantContext,
+    @Param("businessSlug") businessSlug: string,
+    @Param("professionalId") professionalId: string,
+    @Body() body: AdminProfessionalUpdateRequest,
+  ) {
+    return this.businessAdminProfessionals.updateProfessional(
+      tenant,
+      businessSlug,
+      professionalId,
+      body,
+    );
+  }
+
+  @Put(":businessSlug/professionals/:professionalId/services")
+  @RequireTenant()
+  replaceProfessionalServices(
+    @CurrentTenant() tenant: TenantContext,
+    @Param("businessSlug") businessSlug: string,
+    @Param("professionalId") professionalId: string,
+    @Body() body: AdminProfessionalServicesReplaceRequest,
+  ) {
+    return this.businessAdminProfessionals.replaceProfessionalServices(
+      tenant,
+      businessSlug,
+      professionalId,
+      body,
+    );
+  }
+
+  @Put(":businessSlug/professionals/:professionalId/locations")
+  @RequireTenant()
+  replaceProfessionalLocations(
+    @CurrentTenant() tenant: TenantContext,
+    @Param("businessSlug") businessSlug: string,
+    @Param("professionalId") professionalId: string,
+    @Body() body: AdminProfessionalLocationsReplaceRequest,
+  ) {
+    return this.businessAdminProfessionals.replaceProfessionalLocations(
+      tenant,
+      businessSlug,
+      professionalId,
+      body,
+    );
   }
 
   @Get(":businessSlug/professionals/:professionalId/availability")
@@ -60,6 +168,32 @@ export class BusinessesController {
     @Param("professionalId") professionalId: string,
   ) {
     return this.businessProfessionalAvailability.getAvailability(tenant, professionalId);
+  }
+
+  @Put(":businessSlug/professionals/:professionalId/availability")
+  @RequireTenant()
+  replaceProfessionalAvailability(
+    @CurrentTenant() tenant: TenantContext,
+    @Param("businessSlug") businessSlug: string,
+    @Param("professionalId") professionalId: string,
+    @Body() body: AdminProfessionalAvailabilityReplaceRequest,
+  ) {
+    return this.businessAdminAvailability.replaceProfessionalAvailability(
+      tenant,
+      businessSlug,
+      professionalId,
+      body,
+    );
+  }
+
+  @Put(":businessSlug/business-hours")
+  @RequireTenant()
+  replaceBusinessHours(
+    @CurrentTenant() tenant: TenantContext,
+    @Param("businessSlug") businessSlug: string,
+    @Body() body: AdminBusinessHoursReplaceRequest,
+  ) {
+    return this.businessAdminAvailability.replaceBusinessHours(tenant, businessSlug, body);
   }
 
   @Get(":businessSlug/customers")

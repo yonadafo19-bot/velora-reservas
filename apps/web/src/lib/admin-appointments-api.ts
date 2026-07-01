@@ -14,6 +14,7 @@ import type { BusinessVertical } from "@/types/demo";
 const DEFAULT_TIME_ZONE = "America/Santiago";
 const PAST_DATE_MESSAGE = "No puedes crear una cita en una fecha pasada.";
 const FORM_LOAD_ERROR_MESSAGE = "No pudimos cargar los datos para crear una cita. Intenta nuevamente.";
+const FORM_AUTH_ERROR_MESSAGE = "No pudimos cargar los datos para crear una cita. Revisa la sesión de administrador.";
 const businessSlugByVertical: Record<BusinessVertical, string> = {
   barberia: "velora-barberia-demo",
   belleza: "velora-beauty-studio-demo",
@@ -132,7 +133,7 @@ export async function getAdminAppointmentFormData(
 
     return {
       status: "error",
-      message: FORM_LOAD_ERROR_MESSAGE,
+      message: isUnauthorizedFormLoadError(error) ? FORM_AUTH_ERROR_MESSAGE : FORM_LOAD_ERROR_MESSAGE,
       debugBlock: block,
     };
   }
@@ -345,7 +346,11 @@ function logAdminFormLoadError(block: AdminAppointmentFormLoadBlock, error: unkn
     ? ` status=${error.status}`
     : "";
 
-  console.error(`[admin/citas] Fallo controlado en ${block}:${status} ${message}`);
+  console.warn(`[admin/citas] Fallo controlado en ${block}:${status} ${message}`);
+}
+
+function isUnauthorizedFormLoadError(error: unknown) {
+  return error instanceof AdminFormLoadError && error.status === 401;
 }
 
 function getAdminApiConfig():
@@ -357,7 +362,7 @@ function getAdminApiConfig():
   if (!apiUrl || !token) {
     return {
       ok: false,
-      message: "Falta configurar VELORA_API_URL o VELORA_ADMIN_DEV_TOKEN.",
+      message: FORM_AUTH_ERROR_MESSAGE,
     };
   }
 
@@ -423,10 +428,18 @@ function getSantiagoTodayDate(): string {
 function mapCreateAppointmentError(code: string): string {
   const messages: Record<string, string> = {
     APPOINTMENT_CREATE_INVALID_INPUT: "Revisa los datos de la cita.",
+    APPOINTMENT_INVALID_SERVICE_SELECTION: "Selecciona un servicio valido para la cita.",
+    APPOINTMENT_SLOT_IN_PAST: "El horario seleccionado ya paso.",
+    APPOINTMENT_OUTSIDE_BUSINESS_HOURS: "El horario esta fuera del horario del negocio.",
+    APPOINTMENT_OUTSIDE_PROFESSIONAL_AVAILABILITY: "El profesional no esta disponible en ese horario.",
+    APPOINTMENT_SLOT_BLOCKED: "Ese horario esta bloqueado. Elige otro.",
+    APPOINTMENT_SLOT_ALREADY_TAKEN: "Ese horario ya fue reservado. Elige otro.",
+    APPOINTMENT_CUSTOMER_OVERLAP: "El cliente ya tiene una cita en ese horario. Elige otro horario o revisa su agenda.",
     LOCATION_NOT_FOUND: "La ubicacion seleccionada no esta disponible.",
     CUSTOMER_NOT_FOUND: "El cliente seleccionado no existe.",
     SERVICE_NOT_FOUND: "El servicio seleccionado no existe.",
     PROFESSIONAL_NOT_FOUND: "El profesional seleccionado no existe.",
+    PROFESSIONAL_SERVICE_NOT_AVAILABLE: "El profesional no realiza el servicio seleccionado.",
     PROFESSIONAL_SERVICE_NOT_ALLOWED: "El profesional no realiza el servicio seleccionado.",
   };
 

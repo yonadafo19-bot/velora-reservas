@@ -4,6 +4,7 @@ import type { AdminCalendarLoadState, AdminCalendarResponse } from "@/types/admi
 const DEFAULT_TIME_ZONE = "America/Santiago";
 const DEFAULT_RANGE_DAYS = 7;
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+const ADMIN_CALENDAR_AUTH_MESSAGE = "Configuración o sesión pendiente. No pudimos cargar la agenda real. Revisa la sesión de administrador.";
 
 const businessSlugByVertical: Record<BusinessVertical, string> = {
   barberia: "velora-barberia-demo",
@@ -26,7 +27,7 @@ export async function getAdminCalendar(
   if (!apiUrl || !token) {
     return {
       status: "missing-config",
-      message: "Falta configurar VELORA_API_URL o VELORA_ADMIN_DEV_TOKEN para cargar la agenda real.",
+      message: ADMIN_CALENDAR_AUTH_MESSAGE,
     };
   }
 
@@ -47,6 +48,13 @@ export async function getAdminCalendar(
         `Admin calendar API request failed with status ${response.status}.`,
         response.status,
       ));
+
+      if (response.status === 401) {
+        return {
+          status: "missing-config",
+          message: ADMIN_CALENDAR_AUTH_MESSAGE,
+        };
+      }
 
       return {
         status: "error",
@@ -188,5 +196,5 @@ function logAdminCalendarLoadError(error: unknown) {
     ? ` status=${error.status}`
     : "";
 
-  console.error(`[admin/citas] Fallo controlado en calendar:${status} ${message}`);
+  console.warn(`[admin/citas] Fallo controlado en calendar:${status} ${message}`);
 }

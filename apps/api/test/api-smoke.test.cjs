@@ -23,11 +23,11 @@ async function waitUntilReady(url) {
       const response = await fetch(`${url}/api/v1/health/live`);
       if (response.ok) return;
     } catch {
-      // La API aún está iniciando.
+      // La API aun esta iniciando.
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Error("La API no inició dentro del tiempo esperado.");
+  throw new Error("La API no inicio dentro del tiempo esperado.");
 }
 
 before(async () => {
@@ -54,7 +54,7 @@ after(() => {
   apiProcess?.kill();
 });
 
-test("health live y ready permanecen públicos", async () => {
+test("health live y ready permanecen publicos", async () => {
   const [live, ready] = await Promise.all([
     fetch(`${baseUrl}/api/v1/health/live`),
     fetch(`${baseUrl}/api/v1/health/ready`),
@@ -63,26 +63,28 @@ test("health live y ready permanecen públicos", async () => {
   assert.equal(ready.status, 200);
 });
 
-test("auth/me sin token devuelve 401 y propaga requestId", async () => {
+test("auth/me sin token devuelve usuario dev cuando AUTH_REQUIRED=false", async () => {
   const response = await fetch(`${baseUrl}/api/v1/auth/me`, {
     headers: { "x-request-id": "test-auth-missing" },
   });
   const body = await response.json();
-  assert.equal(response.status, 401);
+  assert.equal(response.status, 200);
   assert.equal(response.headers.get("x-request-id"), "test-auth-missing");
-  assert.equal(body.requestId, "test-auth-missing");
-  assert.equal(body.code, "AUTH_TOKEN_MISSING");
+  assert.equal(body.userId, "seed-user-demo-owner");
+  assert.equal(
+    body.memberships.some((membership) => membership.businessSlug === "barberia"),
+    true,
+  );
 });
 
-test("auth/me con token inválido devuelve 401 estable", async () => {
+test("auth/me con token local no valida JWT cuando AUTH_REQUIRED=false", async () => {
   const response = await fetch(`${baseUrl}/api/v1/auth/me`, {
     headers: {
-      authorization: "Bearer token-invalido",
+      authorization: "Bearer local-dev-token",
       "x-request-id": "test-auth-invalid",
     },
   });
   const body = await response.json();
-  assert.equal(response.status, 401);
-  assert.equal(body.code, "AUTH_TOKEN_INVALID");
-  assert.equal(body.requestId, "test-auth-invalid");
+  assert.equal(response.status, 200);
+  assert.equal(body.userId, "seed-user-demo-owner");
 });

@@ -64,6 +64,10 @@ test("business professionals usa orden estable", async () => {
     { service: { name: "asc" } },
     { service: { id: "asc" } },
   ]);
+  assert.deepEqual(getQuery().select.locations.orderBy, [
+    { locationId: "asc" },
+    { id: "asc" },
+  ]);
 });
 
 test("business professionals selecciona solo campos necesarios", async () => {
@@ -98,6 +102,30 @@ test("business professionals selecciona solo campos necesarios", async () => {
         { service: { id: "asc" } },
       ],
     },
+    locations: {
+      where: {
+        status: "ACTIVE",
+        location: {
+          status: "ACTIVE",
+        },
+      },
+      select: {
+        location: {
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+            addressLine: true,
+            city: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: [
+        { locationId: "asc" },
+        { id: "asc" },
+      ],
+    },
   });
 });
 
@@ -123,6 +151,18 @@ test("business professionals mapea campos y servicios asociados", async () => {
           },
         },
       ],
+      locations: [
+        {
+          location: {
+            id: "location-1",
+            slug: "providencia-demo",
+            name: "Sucursal Providencia Demo",
+            addressLine: "Av. Providencia 123",
+            city: "Santiago",
+            status: "ACTIVE",
+          },
+        },
+      ],
     },
     {
       id: "professional-2",
@@ -131,6 +171,7 @@ test("business professionals mapea campos y servicios asociados", async () => {
       bio: null,
       status: "ARCHIVED",
       services: [],
+      locations: [],
     },
   ]);
 
@@ -146,6 +187,16 @@ test("business professionals mapea campos y servicios asociados", async () => {
         { id: "service-1", name: "Corte clasico" },
         { id: "service-2", name: "Perfilado de barba" },
       ],
+      locations: [
+        {
+          id: "location-1",
+          slug: "providencia-demo",
+          name: "Sucursal Providencia Demo",
+          addressLine: "Av. Providencia 123",
+          city: "Santiago",
+          status: "ACTIVE",
+        },
+      ],
     },
     {
       id: "professional-2",
@@ -155,6 +206,7 @@ test("business professionals mapea campos y servicios asociados", async () => {
       status: "ARCHIVED",
       isActive: false,
       services: [],
+      locations: [],
     },
   ]);
 });
@@ -176,6 +228,19 @@ test("business professionals no expone campos sensibles", async () => {
             id: "service-1",
             businessId: "business-tenant-1",
             name: "Corte clasico",
+          },
+        },
+      ],
+      locations: [
+        {
+          location: {
+            id: "location-1",
+            businessId: "business-tenant-1",
+            slug: "providencia-demo",
+            name: "Sucursal Providencia Demo",
+            addressLine: "Av. Providencia 123",
+            city: "Santiago",
+            status: "ACTIVE",
           },
         },
       ],

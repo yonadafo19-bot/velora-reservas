@@ -1,7 +1,9 @@
 const assert = require("node:assert/strict");
 const { test } = require("node:test");
 
+const { Logger } = require("@nestjs/common");
 const { AuditWriterService } = require("../dist/common/audit/audit-writer.service.js");
+const { HttpErrorFilter } = require("../dist/common/filters/http-error.filter.js");
 const { RequestContextService } = require("../dist/common/request-context/request-context.service.js");
 const {
   NestedTransactionError,
@@ -22,6 +24,71 @@ function tenantContext(businessId = "business-1") {
     userId: "user-1",
   };
 }
+
+test("HttpErrorFilter registra errores internos con requestId y datos sanitizados", () => {
+  const logs = [];
+  const replies = [];
+  const originalError = Logger.prototype.error;
+  Logger.prototype.error = function error(message) {
+    logs.push(String(message));
+  };
+
+  try {
+    const filter = new HttpErrorFilter(
+      {
+        httpAdapter: {
+          reply: (_response, body, status) => {
+            replies.push({ body, status });
+          },
+        },
+      },
+      { getRequestId: () => "request-safe-1" },
+    );
+    const error = new Error(
+      "fallo inesperado token=secret-value Authorization: Bearer abc123 cookie=session database_url=postgres://user:pass@localhost/db",
+    );
+    error.name = "PrismaClientKnownRequestError";
+    error.code = "P2000";
+    error.meta = {
+      target: ["phone"],
+      token: "secret-value",
+      nested: {
+        authorization: "Bearer abc123",
+        safe: "visible",
+      },
+    };
+
+    filter.catch(error, {
+      switchToHttp: () => ({
+        getResponse: () => ({}),
+      }),
+    });
+  } finally {
+    Logger.prototype.error = originalError;
+  }
+
+  assert.equal(replies[0].status, 500);
+  assert.equal(replies[0].body.code, "INTERNAL_SERVER_ERROR");
+  assert.equal(replies[0].body.requestId, "request-safe-1");
+  assert.equal(replies[0].body.message, "Ocurrió un error interno.");
+  assert.equal(logs.length, 1);
+
+  const logEntry = JSON.parse(logs[0]);
+  assert.equal(logEntry.requestId, "request-safe-1");
+  assert.equal(logEntry.errorName, "PrismaClientKnownRequestError");
+  assert.equal(logEntry.errorCode, "P2000");
+  assert.deepEqual(logEntry.errorMeta.target, ["phone"]);
+  assert.equal(logEntry.errorMeta.token, "[redacted]");
+  assert.equal(logEntry.errorMeta.nested.authorization, "[redacted]");
+  assert.equal(logEntry.errorMeta.nested.safe, "visible");
+  assert.ok(logEntry.message.length <= 300);
+
+  const serializedLog = logs.join("\n");
+  assert.equal(serializedLog.includes("secret-value"), false);
+  assert.equal(serializedLog.includes("abc123"), false);
+  assert.equal(serializedLog.includes("session"), false);
+  assert.equal(serializedLog.includes("postgres://"), false);
+});
 
 test("el helper rechaza la ausencia de contexto tenant", () => {
   const scope = new TenantScopeService({ get: () => undefined });

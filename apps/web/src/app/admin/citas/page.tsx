@@ -54,5 +54,5 @@ function logAdminCitasLoadError(block: string, error: unknown) {
   }
 
   const message = error instanceof Error ? error.message : "Error desconocido.";
-  console.error(`[admin/citas] Fallo controlado en ${block}: ${message}`);
+  console.warn(`[admin/citas] Fallo controlado en ${block}: ${message}`);
 }

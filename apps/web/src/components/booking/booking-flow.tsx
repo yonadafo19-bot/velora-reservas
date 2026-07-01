@@ -9,6 +9,7 @@ import { formatClp, formatDuration } from "@/lib/formatting";
 import type { BookingDraft, BusinessVertical } from "@/types/demo";
 
 const times = ["09:30", "10:30", "11:45", "14:00", "15:30", "17:00", "18:30"];
+const DEFAULT_TIME_ZONE = "America/Santiago";
 
 export function BookingFlow({ vertical, initialServiceId }: { vertical: BusinessVertical; initialServiceId?: string }) {
   const router = useRouter();
@@ -25,7 +26,7 @@ export function BookingFlow({ vertical, initialServiceId }: { vertical: Business
   const selectedService = availableServices.find((item) => item.serviceId === serviceId);
   const professionals = useMemo(() => getProfessionals(vertical).filter((item) => !serviceId || item.serviceIds.includes(serviceId)), [vertical, serviceId]);
   const selectedProfessional = professionals.find((item) => item.professionalId === professionalId);
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayInSantiago();
 
   const canContinue = step === 1 ? Boolean(serviceId) : step === 2 ? Boolean(professionalId && date && time) : Boolean(clientName.trim() && clientPhone.trim());
 
@@ -62,4 +63,20 @@ export function BookingFlow({ vertical, initialServiceId }: { vertical: Business
       <aside className="booking-summary"><div className="ticket-top"><span>VELORA</span><small>EXPERIENCE PASS · DEMO</small></div><span className="eyebrow">TU EXPERIENCIA</span><h2>{business.name}</h2><p>{business.address}</p><div className="summary-lines"><div><span>Servicio</span><strong>{selectedService?.name ?? "Por elegir"}</strong></div><div><span>Especialista</span><strong>{selectedProfessional?.name ?? "Por elegir"}</strong></div><div><span>Fecha y hora</span><strong>{date ? `${date.split("-").reverse().join("/")} · ${time || "—"}` : "Por elegir"}</strong></div></div>{selectedService && <div className="summary-total"><span>Total estimado</span><strong>{formatClp(selectedService.priceClp)}</strong></div>}<div className="ticket-code" aria-hidden="true"><i/><i/><i/><i/><i/><i/><i/><i/><i/></div><small className="summary-demo">Vista previa · Esta reserva no será enviada.</small></aside>
     </div>
   </div>;
+}
+
+function todayInSantiago(): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: DEFAULT_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const valueByType = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+
+  return `${valueByType.year}-${valueByType.month}-${valueByType.day}`;
 }
