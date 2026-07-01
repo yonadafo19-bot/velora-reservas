@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dafory Launch Guard — Deck v0.1</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap');
+
+    :root {
+      --ink:       #0d0d0b;
+      --paper:     #fafaf7;
+      --green:     #78d9a0;
+      --green-dim: rgba(120,217,160,.12);
+      --gold:      #c9933e;
+      --amber:     #eab338;
+      --amber-dim: rgba(234,179,56,.1);
+      --muted:     rgba(255,255,255,.52);
+      --line:      rgba(255,255,255,.1);
+      --serif:     'Cormorant Garamond', Georgia, serif;
+      --sans:      'Outfit', Arial, sans-serif;
+      --slide-w:   1200px;
+      --slide-h:   675px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--sans);
+      background: #0a0a08;
+      color: white;
+      min-height: 100vh;
+      padding: 0;
+    }
+
+    /* ── Navigation ─────────────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      height: 52px;
+      background: rgba(10,10,8,.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255,255,255,.07);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px;
+    }
+    .nav-brand { font-size: .7rem; letter-spacing: .2em; color: rgba(255,255,255,.45); }
+    .nav-dots { display: flex; gap: 8px; }
+    .nav-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: rgba(255,255,255,.2);
+      cursor: pointer; border: none;
+      transition: background .2s;
+    }
+    .nav-dot.active, .nav-dot:hover { background: var(--green); }
+    .nav-counter { font-size: .68rem; color: rgba(255,255,255,.3); letter-spacing: .08em; }
+
+    /* ── Slide wrapper ──────────────────────────────────── */
+    main { padding-top: 52px; }
+
+    .slide {
+      width: 100%; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 60px 32px;
+      position: relative; overflow: hidden;
+      scroll-snap-align: start;
+    }
+
+    .slide-inner {
+      width: min(var(--slide-w), 100%);
+      position: relative; z-index: 2;
+    }
+
+    /* ── Background variants ──────────────────────────── */
+    .bg-dark   { background: linear-gradient(160deg, #13120e 0%, #1a1916 60%, #0e0e0c 100%); }
+    .bg-cover  { background: linear-gradient(135deg, #0b0c0b 0%, #1a2218 50%, #0d110c 100%); }
+    .bg-warm   { background: linear-gradient(155deg, #100f0c 0%, #1e1c16 55%, #111008 100%); }
+    .bg-cool   { background: linear-gradient(150deg, #0b0d10 0%, #141820 55%, #09090e 100%); }
+
+    .glow {
+      position: absolute; border-radius: 50%; filter: blur(90px);
+      pointer-events: none;
+    }
+    .glow-green { width: 500px; height: 500px; background: radial-gradient(circle, rgba(120,217,160,.12), transparent 70%); }
+    .glow-gold  { width: 400px; height: 400px; background: radial-gradient(circle, rgba(201,147,62,.1), transparent 70%); }
+
+    /* ── Typography ─────────────────────────────────────── */
+    .eyebrow {
+      display: inline-block;
+      font-size: .58rem; font-weight: 700; letter-spacing: .22em;
+      color: var(--green); margin-bottom: 18px;
+    }
+    .eyebrow-gold { color: var(--gold); }
+
+    h1.slide-title {
+      font-family: var(--serif);
+      font-size: clamp(3rem, 5.5vw, 5.5rem);
+      font-weight: 500; line-height: .92;
+      letter-spacing: -.03em;
+      margin-bottom: 28px;
+    }
+    h1.slide-title em { color: var(--green); font-style: italic; }
+
+    h2.section-title {
+      font-family: var(--serif);
+      font-size: clamp(2.2rem, 4vw, 3.8rem);
+      font-weight: 500; line-height: .95;
+      letter-spacing: -.025em;
+      margin-bottom: 22px;
+    }
+    h2.section-title em { color: var(--green); font-style: italic; }
+
+    .lead {
+      font-size: 1.05rem; color: rgba(255,255,255,.65);
+      line-height: 1.75; max-width: 680px;
+    }
+
+    .tagline {
+      font-family: var(--serif); font-style: italic;
+      font-size: 1.3rem; color: rgba(255,255,255,.55);
+      border-left: 2px solid var(--green);
+      padding-left: 18px; margin-top: 28px;
+    }
+
+    /* ── Cover slide ─────────────────────────────────────── */
+    .cover-layout {
+      min-height: calc(100vh - 52px);
+      display: flex; flex-direction: column;
+      justify-content: center;
+      padding: 80px 0;
+    }
+    .cover-wordmark {
+      font-family: var(--serif);
+      font-size: clamp(4rem, 7vw, 7.5rem);
+      font-weight: 400; line-height: .88;
+      letter-spacing: -.04em;
+      margin-bottom: 12px;
+    }
+    .cover-wordmark span { color: var(--green); }
+    .cover-sub {
+      font-size: 1rem; color: rgba(255,255,255,.5);
+      letter-spacing: .06em; margin-bottom: 50px;
+    }
+    .cover-chips { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 55px; }
+    .chip {
+      padding: 6px 14px;
+      font-size: .55rem; font-weight: 700; letter-spacing: .14em;
+      border: 1px solid;
+    }
+    .chip-green { border-color: rgba(120,217,160,.35); color: var(--green); background: var(--green-dim); }
+    .chip-gold  { border-color: rgba(201,147,62,.35); color: var(--gold); background: rgba(201,147,62,.08); }
+    .chip-dim   { border-color: rgba(255,255,255,.15); color: rgba(255,255,255,.4); }
+    .cover-meta { font-size: .62rem; color: rgba(255,255,255,.22); letter-spacing: .1em; }
+
+    /* ── Two-column layout ───────────────────────────────── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 70px; align-items: start; }
+    .two-col-wide { grid-template-columns: 1.1fr .9fr; }
+
+    /* ── Metric block ─────────────────────────────────────── */
+    .metric-row { display: flex; gap: 40px; flex-wrap: wrap; margin: 35px 0; }
+    .metric {
+      display: flex; flex-direction: column; gap: 4px;
+      border-left: 2px solid var(--green); padding-left: 16px;
+    }
+    .metric strong {
+      font-family: var(--serif); font-size: 2.8rem;
+      font-weight: 600; line-height: 1; color: var(--green);
+    }
+    .metric small { font-size: .62rem; color: rgba(255,255,255,.4); letter-spacing: .08em; }
+
+    /* ── Score ring ─────────────────────────────────────── */
+    .score-block { display: flex; align-items: center; gap: 30px; }
+    .score-ring-wrap { position: relative; width: 120px; height: 120px; flex: 0 0 120px; }
+    .score-ring-wrap svg { width: 120px; height: 120px; }
+    .score-num {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      font-family: var(--serif); line-height: 1;
+    }
+    .score-num strong { font-size: 2.2rem; color: var(--green); }
+    .score-num span { font-size: .55rem; color: rgba(255,255,255,.4); letter-spacing: .06em; }
+
+    /* ── Verdict cards ───────────────────────────────────── */
+    .verdict-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 30px; }
+    .verdict-card {
+      padding: 28px 26px; border: 1px solid;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .verdict-card--pass { border-color: rgba(120,217,160,.25); background: rgba(120,217,160,.045); }
+    .verdict-card--warn { border-color: rgba(234,179,56,.28); background: rgba(234,179,56,.04); }
+    .verdict-tag {
+      font-size: .48rem; font-weight: 700; letter-spacing: .16em;
+      font-family: 'Courier New', monospace;
+    }
+    .verdict-card--pass .verdict-tag { color: var(--green); }
+    .verdict-card--warn .verdict-tag { color: var(--amber); }
+    .verdict-card strong { font-size: .9rem; }
+    .verdict-card p { font-size: .72rem; color: rgba(255,255,255,.5); line-height: 1.6; margin: 0; }
+    .verdict-icon {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      border: 1px solid;
+    }
+    .verdict-card--pass .verdict-icon { border-color: rgba(120,217,160,.4); color: var(--green); }
+    .verdict-card--warn .verdict-icon { border-color: rgba(234,179,56,.4); color: var(--amber); }
+
+    /* ── Table ───────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; margin: 24px 0; }
+    thead tr { border-bottom: 1px solid rgba(255,255,255,.12); }
+    th {
+      text-align: left; padding: 10px 14px;
+      font-size: .55rem; font-weight: 700; letter-spacing: .1em;
+      color: rgba(255,255,255,.35);
+    }
+    td { padding: 12px 14px; font-size: .75rem; border-bottom: 1px solid rgba(255,255,255,.06); }
+    tr:last-child td { border-bottom: 0; }
+    .td-pass { color: var(--green); font-weight: 700; font-size: .62rem; }
+    .td-warn { color: var(--amber); font-weight: 700; font-size: .62rem; }
+
+    /* ── Process steps ───────────────────────────────────── */
+    .steps-row { display: flex; gap: 0; margin: 35px 0; }
+    .step {
+      flex: 1; padding: 26px 22px;
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.07);
+      border-right: none;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .step:last-child { border-right: 1px solid rgba(255,255,255,.07); }
+    .step-num { font-family: var(--serif); font-size: 1.2rem; color: rgba(255,255,255,.15); }
+    .step strong { font-size: .75rem; }
+    .step p { font-size: .62rem; color: rgba(255,255,255,.38); line-height: 1.55; margin: 0; }
+
+    /* ── Bullet list ─────────────────────────────────────── */
+    .bullet-list { list-style: none; display: flex; flex-direction: column; gap: 12px; margin: 24px 0; }
+    .bullet-list li {
+      display: flex; align-items: flex-start; gap: 12px;
+      font-size: .82rem; color: rgba(255,255,255,.72); line-height: 1.5;
+    }
+    .bullet-list li::before {
+      content: ''; width: 5px; height: 5px; border-radius: 50%;
+      background: var(--green); flex: 0 0 5px; margin-top: 7px;
+    }
+
+    /* ── Tier cards ─────────────────────────────────────── */
+    .tier-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin: 28px 0; }
+    .tier-card {
+      border: 1px solid rgba(255,255,255,.1);
+      background: rgba(255,255,255,.03);
+      padding: 24px 20px;
+    }
+    .tier-name { font-size: .55rem; font-weight: 700; letter-spacing: .14em; color: var(--gold); margin-bottom: 10px; }
+    .tier-price { font-family: var(--serif); font-size: 1.4rem; line-height: 1; margin-bottom: 8px; }
+    .tier-desc { font-size: .65rem; color: rgba(255,255,255,.4); line-height: 1.5; }
+
+    /* ── Roadmap ─────────────────────────────────────────── */
+    .roadmap { display: grid; grid-template-columns: repeat(4,1fr); gap: 1px; margin: 30px 0; background: rgba(255,255,255,.07); }
+    .roadmap-phase { background: rgba(255,255,255,.025); padding: 24px 20px; }
+    .phase-label { font-size: .5rem; font-weight: 700; letter-spacing: .14em; color: var(--green); margin-bottom: 12px; }
+    .phase-title { font-family: var(--serif); font-size: 1.1rem; margin-bottom: 14px; }
+    .phase-items { list-style: none; display: flex; flex-direction: column; gap: 7px; }
+    .phase-items li { font-size: .62rem; color: rgba(255,255,255,.5); padding-left: 12px; position: relative; }
+    .phase-items li::before {
+      content: ''; position: absolute; left: 0; top: 6px;
+      width: 4px; height: 4px; border-radius: 50%;
+      background: rgba(255,255,255,.25);
+    }
+    .phase-items li.done { color: rgba(120,217,160,.7); }
+    .phase-items li.done::before { background: var(--green); }
+
+    /* ── Fund allocation ────────────────────────────────── */
+    .fund-bars { display: flex; flex-direction: column; gap: 14px; margin: 28px 0; }
+    .fund-bar-row { display: flex; align-items: center; gap: 14px; }
+    .fund-label { font-size: .68rem; width: 180px; flex: 0 0 180px; color: rgba(255,255,255,.65); }
+    .fund-track { flex: 1; height: 6px; background: rgba(255,255,255,.08); }
+    .fund-fill { height: 100%; background: linear-gradient(90deg, var(--green), rgba(120,217,160,.5)); }
+    .fund-pct { font-size: .62rem; color: var(--green); font-weight: 700; width: 36px; text-align: right; }
+
+    /* ── Segment grid ───────────────────────────────────── */
+    .segment-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; margin: 28px 0; }
+    .segment-card { border: 1px solid rgba(255,255,255,.08); padding: 22px; }
+    .segment-num { font-size: .48rem; font-weight: 700; letter-spacing: .14em; color: var(--gold); margin-bottom: 8px; }
+    .segment-card strong { font-size: .82rem; display: block; margin-bottom: 6px; }
+    .segment-card p { font-size: .65rem; color: rgba(255,255,255,.45); margin: 0; line-height: 1.55; }
+
+    /* ── Close slide ────────────────────────────────────── */
+    .close-layout { text-align: center; max-width: 820px; margin: 0 auto; }
+    .proof-row { display: flex; gap: 30px; justify-content: center; flex-wrap: wrap; margin: 40px 0; }
+    .proof-item { display: flex; align-items: center; gap: 10px; font-size: .72rem; color: rgba(255,255,255,.55); }
+    .proof-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex: 0 0 6px; }
+
+    /* ── Slide number badge ─────────────────────────────── */
+    .slide-num {
+      position: absolute; bottom: 32px; right: 40px;
+      font-size: .5rem; color: rgba(255,255,255,.18); letter-spacing: .1em;
+    }
+
+    /* ── Divider ─────────────────────────────────────────── */
+    .divider { height: 1px; background: rgba(255,255,255,.08); margin: 30px 0; }
+
+    /* ── Print / export helper ──────────────────────────── */
+    @media print {
+      nav { display: none; }
+      .slide { min-height: 100vh; page-break-after: always; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Navigation ───────────────────────────────────────────────────── -->
+<nav>
+  <span class="nav-brand">DAFORY LAUNCH GUARD · v0.1</span>
+  <div class="nav-dots" id="navDots"></div>
+  <span class="nav-counter" id="navCounter">1 / 14</span>
+</nav>
+
+<main>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 01 — PORTADA                                                  -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="slide bg-cover" id="slide-1">
+  <div class="glow glow-green" style="right:-100px;top:50%;transform:translateY(-50%)"></div>
+  <div class="glow glow-gold"  style="left:-80px;bottom:-80px"></div>
+  <div class="slide-inner">
+    <div class="cover-layout">
+      <div class="cover-wordmark">
+        Dafory<br><span>Launch Guard</span>
+      </div>
+      <p class="cover-sub">AUDITORÍA PRE-LANZAMIENTO PARA SAAS Y PRODUCTOS DIGITALES</p>
+      <div class="cover-chips">
+        <span class="chip chip-green">EVIDENCIA</span>
+        <span class="chip chip-green">SCORE</span>
+        <span class="chip chip-gold">VEREDICTO</span>
+        <span class="chip chip-gold">BACKLOG</span>
+        <span class="chip chip-dim">JULIO 2026 · v0.1</span>
+      </div>
+      <p class="tagline">"Antes de lanzar, valida si está realmente listo."</p>
+      <p class="cover-meta" style="margin-top:50px">
+        USO CONFIDENCIAL · MATERIAL DE PRESENTACIÓN
+      </p>
+    </div>
+  </div>
+  <span class="slide-num">01 / 14</span>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 02 — EL PROBLEMA                                              -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="slide bg-dark" id="slide-2">
+  <div class="glow glow-gold" style="right:-60px;top:20%"></div>
+  <div class="slide-inner">
+    <span class="eyebrow eyebrow-gold">EL PROBLEMA</span>
+    <h2 class="section-title">Los SaaS se lanzan<br/>sin QA profesional.</h2>
+    <div class="two-col">
+      <div>
+        <p class="lead">Con IA, un equipo pequeño puede construir una app en días. Poderoso. Y también arriesgado: nadie verificó si realmente funciona en condiciones reales antes de mostrarlo.</p>
+        <ul class="bullet-list" style="margin-top:28px">
+          <li>Demo impresionante con bugs no documentados</li>
+          <li>Fondo que pierde confianza al descubrirlos</li>
+          <li>Primer cliente que encuentra el fallo crítico</li>
+          <li>Deuda técnica invisible sin backlog</li>
+        </ul>
+      </div>
+      <div>
+        <table>
+          <thead><tr><th>Situación</th><th>Impacto</th></tr></thead>
+          <tbody>
+            <tr><td>Demo a fondo con bugs</td><td style="color:rgba(234,179,56,.8)">Pérdida de credibilidad</td></tr>
+            <tr><td>Cliente encuentra fallo</td><td style="color:rgba(234,179,56,.8)">Daño comercial</td></tr>
+            <tr><td>Lanzamiento sin riesgos</td><td style="color:rgba(234,179,56,.8)">Deuda invisible</td></tr>
+            <tr><td>Demo promete de más</td><td style="color:rgba(234,179,56,.8)">Promesas incumplibles</td></tr>
+          </tbody>
+        </table>
+        <p class="tagline" style="font-size:1rem;margin-top:22px">"El problema no es que esté incompleto.<br/>Es que nadie lo verificó antes."</p>
+      </div>
+    </div>
+  </div>
+  <span class="slide-num">02 / 14</span>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 03 — POR QUÉ AHORA                                            -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="slide bg-warm" id="slide-3">
+  <div class="glow glow-green" style="left:-80px;top:30%"></div>
+  <div class="slide-inner">
+    <span class="eyebrow">POR QUÉ AHORA</span>
+    <h2 class="section-title">Más software con IA.<br/><em>Más riesgo de lanzar mal.</em></h2>
+    <div class="two-col">
+      <div>
+        <p class="lead">La barrera de entrada para construir software bajó drásticamente. La madurez de los procesos de validación no.</p>
+        <div style="margin-top:36px;padding:24px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02)">
+          <p style="font-size:.62rem;color:rgba(255,255,255,.35);letter-spacing:.08em;margin-bottom:14px">BRECHA QUE SE ABRE</p>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div>
+              <span style="font-size:.65rem;color:rgba(255,255,255,.4)">Velocidad de construcción</span>
+              <div style="height:6px;background:rgba(255,255,255,.06);margin-top:6px"><div style="width:92%;height:100%;background:linear-gradient(90deg,#78d9a0,rgba(120,217,160,.4))"></div></div>
+            </div>
+            <div>
+              <span style="font-size:.65rem;color:rgba(255,255,255,.4)">Madurez de QA en equipos pequeños</span>
+              <div style="height:6px;background:rgba(255,255,255,.06);margin-top:6px"><div style="width:22%;height:100%;background:linear-gradient(90deg,#eab338,rgba(234,179,56,.4))"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <ul class="bullet-list">
+          <li>Cursor, Bolt, v0, Lovable aceleran construcción</li>
+          <li>No-programadores crean apps que compiten visualmente</li>
+          <li>Fondos reciben más decks con demos impresionantes</li>
+          <li>Compradores B2B preguntan por confiabilidad</li>
+          <li>Nadie cubre el espacio de validación para equipos pequeños</li>
+        </ul>
+        <p class="tagline" style="font-size:.95rem;margin-top:30px">Ese espacio es Dafory Launch Guard.</p>
+      </div>
+    </div>
+  </div>
+  <span class="slide-num">03 / 14</span>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 04 — LA SOLUCIÓN                                              -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="slide bg-cover" id="slide-4">
+  <div class="glow glow-green" style="right:-60px;top:10%"></div>
+  <div class="slide-inner">
+    <span class="eyebrow">LA SOLUCIÓN</span>
+    <h2 class="section-title">Dafory Launch Guard</h2>
+    <p class="lead" style="margin-bottom:36px">Auditoría pre-lanzamiento que convierte una revisión técnica en una decisión clara de negocio. <strong style="color:white">No es testing barato.</strong> Es criterio comercial.</p>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:rgba(255,255,255,.07)">
+      <div style="background:rgba(255,255,255,.025);padding:22px 18px">
+        <p style="font-size:.5rem;color:var(--green);letter-spacing:.14em;font-weight:700;margin-bottom:10px">EVIDENCE PACK</p>
+        <p style="font-size:.68rem;color:rgba(255,255,255,.5);line-height:1.5">Capturas automatizadas de todas las rutas críticas</p>
+      </div>
+      <div style="background:rgba(255,255,255,.025);padding:22px 18px">
+        <p style="font-size:.5rem;color:var(--green);letter-spacing:.14em;font-weight:700;margin-bottom:10px">SCORE</p>
+        <p style="font-size:.68rem;color:rgba(255,255,255,.5);line-height:1.5">Métricas verificables PASS / WARNING / FAIL</p>
+      </div>
+      <div style="background:rgba(255,255,255,.025);padding:22px 18px">
+        <p style="font-size:.5rem;color:var(--green);letter-spacing:.14em;font-weight:700;margin-bottom:10px">VEREDICTO</p>
+        <p style="font-size:.68rem;color:rgba(255,255,255,.5);line-height:1.5">Demo visual vs. operación comercial real — por separado</p>
+      </div>
+      <div style="background:rgba(255,255,255,.025);padding:22px 18px">
+        <p style="font-size:.5rem;color:var(--green);letter-spacing:.14em;font-weight:700;margin-bottom:10px">BACKLOG</p>
+        <p style="font-size:.68rem;color:rgba(255,255,255,.5);line-height:1.5">Riesgos ordenados por impacto. Accionable, no archivable.</p>
+      </div>
+      <div style="background:rgba(255,255,255,.025);padding:22px 18px">
+        <p style="font-size:.5rem;color:var(--green);letter-spacing:.14em;font-weight:700;margin-bottom:10px">REPORTE</p>
+        <p style="font-size:.68rem;color:rgba(255,255,255,.5);line-height:1.5">Documento profesional para fondos, clientes o equipos</p>
+      </div>
+    </div>
+    <p class="tagline" style="font-size:1rem;margin-top:30px">"El fundador sabe exactamente qué puede mostrar, qué no puede prometer, y qué debe corregir."</p>
+  </div>
+  <span class="slide-num">04 / 14</span>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 05 — CÓMO FUNCIONA                                            -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="slide bg-dark" id="slide-5">
+  <div class="slide-inner">
+    <span class="eyebrow">EL PROCESO</span>
+    <h2 class="section-title">5 etapas. Resultado documentado.<br/><em>Entregable accionable.</em></h2>
+    <div class="steps-row">
+      <div class="step"><span class="step-num">01</span><strong>Intake</strong><p>Formulario de ingreso. Definición de alcance y contexto de lanzamiento.</p></div>
+      <div class="step"><span class="step-num">02</span><strong>Revisión</strong><p>Navegación completa. Flujos, rutas, responsive, UX, estados de configuración.</p></div>
+      <div class="step"><span class="step-num">03</span><strong>Evidencia</strong><p>Playwright en desktop y mobile. evidence-index.md + playwright-notes.md.</p></div>
+      <div class="step"><span class="step-num">04</span><strong>Reporte</strong><p>Score + veredicto diferenciado. Hallazgos en fortalezas y advertencias.</p></div>
+      <div class="step"><span class="step-num">05</span><strong>Backlog</strong><p>Correcciones ordenadas por impacto. Diferencia bloqueante vs. mejora.</p></div>
+    </div>
+    <p class="lead" style="margin-top:24px;font-size:.88rem">48–72 horas para un producto de tamaño estándar.</p>
+  </div>
+  <span class="slide-num">05 / 14</span>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 06 — CASO DEMO 001                                            -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="slide bg-warm" id="slide-6">
+  <div class="glow glow-gold" style="left:-60px;bottom:-60px"></div>
+  <div class="slide-inner">
+    <span class="eyebrow eyebrow-gold">CASO DEMO 001</span>
+    <h2 class="section-title">Velora Reservas —<br/>Primer caso real.</h2>
+    <div class="two-col">
+      <div>
+        <p class="lead">Plataforma de reservas online para barberías y estudios de belleza. Producto visualmente premium — sin backend operativo real al momento de la auditoría.</p>
+        <div class="metric-row" style="margin-top:32px">
+          <div class="metric"><strong>17</strong><small>CAPTURAS GENERADAS</small></div>
+          <div class="metric"><strong>35s</strong><small>EJECUCIÓN PLAYWRIGHT</small></div>
+          <div class="metric"><strong>9</strong><small>RUTAS AUDITADAS</small></div>
+        </div>
+        <p style="font-size:.62rem;color:rgba(255,255,255,.28);margin-top:16px;letter-spacing:.06em">Branch: chore/launch-guard-velora-evidence-001 · Playwright v1.60.0</p>
+      </div>
+      <div>
+        <table>
+          <thead><tr><th>Área auditada</th><th>Estado</th></tr></thead>
+          <tbody>
+            <tr><td>Landing pública (`/`)</td><td class="td-pass">✓ REVISADA</td></tr>
+            <tr><td>Flujo de reserva (4 pasos)</td><td class="td-pass">✓ REVISADO</td></tr>
+            <tr><td>Confirmación de reserva</td><td class="td-pass">✓ REVISADA</td></tr>
+            <tr><td>Panel admin — Citas</td><td class="td-pass">✓ REVISADO</td></tr>
+            <tr><td>Panel admin — Clientes</td><td class="td-pass">✓ REVISADO</td></tr>
+            <tr><td>Panel admin — Servicios</td><td class="td-warn">⚠ ADVERTENCIAS</td></tr>
+            <tr><td>Panel admin — Config.</td><td class="td-warn">⚠ ADVERTENCIAS</td></tr>
+            <tr><td>Desktop 1440×1000</td><td class="td-pass">✓ CAPTURADO</td></tr>
+            <tr><td>Mobile 390×844</td><td class="td-pass">✓ CAPTURADO</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <span class="slide-num">06 / 14</span>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 07 — EVIDENCE PACK                                            -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="slide bg-dark" id="slide-7">
+  <div class="glow glow-green" style="right:-60px;top:20%"></div>
+  <div class="slide-inner">
+    <span class="eyebrow">EVIDENCE PACK</span>
+    <div class="score-block" style="margin:22px 0 36px">
+      <div class="score-ring-wrap">
+        <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="60" cy="60" r="50" stroke="rgba(255,255,255,.08)" stroke-width="10"/>
+          <circle cx="60" cy="60" r="50" stroke="url(#scoreGrad)" stroke-width="10" stroke-linecap="round"
+            stroke-dasharray="314" stroke-dashoffset="0" transform="rotate(-90 60 60)"/>
+          <defs>
+            <linearGradient id="scoreGrad" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#78d9a0"/><stop offset="1" stop-color="#3ba86a"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="score-num">
+          <strong>17<br/>/17</strong>
+          <span>PASS</span>
+        </div>
+      </div>
+      <div>
+        <h2 class="section-title" style="font-size:clamp(1.8rem,3vw,3rem)">17/17 capturas PASS.<br/>0 WARNING · 0 FAIL.</h2>
+        <p style="font-size:.72rem;color:rgba(255,255,255,.4);margin-top:8px">Evidence Pack trazable en repositorio. No opiniones — evidencia.</p>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <table>
+        <thead><tr><th>ID</th><th>Ruta</th><th>Viewport</th><th>Resultado</th></tr></thead>
+        <tbody>
+          <tr><td>001</td><td>/</td><td>Desktop</td><td class="td-pass">PASS</td></tr>
+          <tr><td>002</td><td>/</td><td>Mobile</td><td class="td-pass">PASS</td></tr>
+          <tr><td>003</td><td>/reservar</td><td>Desktop+M</td><td class="td-pass">PASS</td></tr>
+          <tr><td>004–006</td><td>Flujo reserva</td><td>Desktop</td><td class="td-pass">PASS</td></tr>
+          <tr><td>007</td><td>/confirmacion</td><td>Desktop</td><td class="td-pass">PASS</td></tr>
+        </tbody>
+      </table>
+      <table>
+        <thead><tr><th>ID</th><th>Ruta</th><th>Viewport</th><th>Resultado</th></tr></thead>
+        <tbody>
+          <tr><td>008</td><td>/admin/citas</td><td>Desktop+M</td><td class="td-pass">PASS</td></tr>
+          <tr><td>009</td><td>/admin/clientes</td><td>Desktop+M</td><td class="td-pass">PASS</td></tr>
+          <tr><td>010</td><td>/admin/servicios</td><td>Desktop</td><td class="td-pass">PASS</td></tr>
+          <tr><td>011</td><td>/admin/profes.</td><td>Desktop</td><td class="td-pass">PASS</td></tr>
+          <tr><td>012–013</td><td>/admin/config.</td><td>Desktop+M</td><td class="td-pass">PASS</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <span class="slide-num">07 / 14</span>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 08 — VEREDICTO                                                -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="slide bg-cover" id="slide-8">
+  <div class="slide-inner">
+    <span class="eyebrow">VEREDICTO DIFERENCIADO</span>
+    <h2 class="section-title">"¿Listo para mostrar?" y "¿listo para operar?"<br/>son preguntas distintas.</h2>
+    <div class="verdict-pair">
+      <div class="verdict-card verdict-card--pass">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="verdict-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg>
+          </div>
+          <span class="verdict-tag">APPROVED_WITH_WARNINGS</span>
+        </div>
+        <strong>Demo visual controlada</strong>
+        <p>Landing, flujo de reserva y confirmación listos para presentar con guion claro a clientes y stakeholders.</p>
+        <div class="divider"></div>
+        <p style="font-size:.65rem;color:rgba(120,217,160,.6)">✓ Landing premium · ✓ Flujo de 4 pasos · ✓ Confirmación</p>
+      </div>
+      <div class="verdict-card verdict-card--warn">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="verdict-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <span class="verdict-tag">NEEDS_FIXES</span>
+        </div>
+        <strong>Operación comercial real</strong>
+        <p>Admin requiere API real, autenticación, persistencia de reservas y configuración de credenciales antes de operar.</p>
+        <div class="divider"></div>
+        <p style="font-size:.65rem;color:rgba(234,179,56,.6)">⚠ Backend · ⚠ Auth · ⚠ Persistencia · ⚠ Agenda real</p>
+      </div>
+    </div>
+    <p class="tagline" style="font-size:.95rem;margin-top:28px">Este veredicto diferenciado es lo que permite no sobreprometer. Y lo que hace a Launch Guard diferente.</p>
+  </div>
+  <span class="slide-num">08 / 14</span>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 09 — MODELO DE NEGOCIO                                        -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="slide bg-warm" id="slide-9">
+  <div class="glow glow-gold" style="right:-80px;bottom:10%"></div>
+  <div class="slide-inner">
+    <span class="eyebrow eyebrow-gold">MODELO DE NEGOCIO</span>
+    <h2 class="section-title">Servicio asistido primero.<br/>Plataforma después.</h2>
+    <div class="tier-grid">
+      <div class="tier-card">
+        <p class="tier-name">GUARD BÁSICO</p>
+        <p class="tier-price">$180K – $250K</p>
+        <p class="tier-desc">Landing + flujo principal + reporte</p>
+      </div>
+      <div class="tier-card" style="border-color:rgba(201,147,62,.25);background:rgba(201,147,62,.04)">
+        <p class="tier-name">GUARD COMPLETO</p>
+        <p class="tier-price">$350K – $550K</p>
+        <p class="tier-desc">App completa + admin + Evidence Pack + backlog</p>
+      </div>
+      <div class="tier-card">
+        <p class="tier-name">GUARD PRO</p>
+        <p class="tier-price">$700K – $1.2M</p>
+        <p class="tier-desc">Revisión + retest post-correcciones + certificado</p>
+      </div>
+    </div>
+    <div style="padding:18px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);margin-top:20px">
+      <p style="font-size:.55rem;color:rgba(255,255,255,.35);letter-spacing:.1em;margin-bottom:12px">EVOLUCIÓN DEL MODELO</p>
+      <div style="display:flex;align-items:center;gap:0;font-size:.68rem">
+        <span style="padding:10px 18px;background:rgba(120,217,160,.1);border:1px solid rgba(120,217,160,.2);color:var(--green)">Servicio asistido</span>
+        <span style="padding:0 14px;color:rgba(255,255,255,.25)">──►</span>
+        <span style="padding:10px 18px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08)">SaaS con revisión asistida</span>
+        <span style="padding:0 14px;color:rgba(255,255,255,.25)">──►</span>
+        <span style="padding:10px 18px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08)">SaaS puro</span>
+      </div>
+    </div>
+    <p style="font-size:.6rem;color:rgba(255,255,255,.25);margin-top:14px">* Precios referenciales en CLP. En proceso de validación con prospectos.</p>
+  </div>
+  <span class="slide-num">09 / 14</span>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 10 — FONDOS OBJETIVO                                          -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="slide bg-cool" id="slide-10">
+  <div class="glow glow-green" style="left:-80px;top:30%"></div>
+  <div class="slide-inner">
+    <span class="eyebrow">FINANCIAMIENTO</span>
+    <h2 class="section-title">Fondos objetivo —<br/>en evaluación.</h2>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:30px 0">
+      <div style="border:1px solid rgba(255,255,255,.1);padding:28px 22px">
+        <p style="font-size:.48rem;color:var(--gold);letter-spacing:.16em;font-weight:700;margin-bottom:14px">SERCOTEC</p>
+        <strong style="font-size:.9rem;display:block;margin-bottom:8px">Capital Semilla Emprende</strong>
+        <p style="font-size:.65rem;color:rgba(255,255,255,.45);line-height:1.55">Validación comercial, herramientas y operación inicial. Encaje con etapa temprana.</p>
+      </div>
+      <div style="border:1px solid rgba(120,217,160,.18);padding:28px 22px;background:rgba(120,217,160,.025)">
+        <p style="font-size:.48rem;color:var(--green);letter-spacing:.16em;font-weight:700;margin-bottom:14px">START-UP CHILE</p>
+        <strong style="font-size:.9rem;display:block;margin-bottom:8px">Build Stage</strong>
+        <p style="font-size:.65rem;color:rgba(255,255,255,.45);line-height:1.55">Desarrollo de plataforma, marketing e internacionalización inicial. Modelo SaaS escalable.</p>
+      </div>
+      <div style="border:1px solid rgba(255,255,255,.1);padding:28px 22px">
+        <p style="font-size:.48rem;color:var(--gold);letter-spacing:.16em;font-weight:700;margin-bottom:14px">CORFO</p>
+        <strong style="font-size:.9rem;display:block;margin-bottom:8px">Semilla Inicia</strong>
+        <p style="font-size:.65rem;color:rgba(255,255,255,.45);line-height:1.55">Equipo, producto y primeros clientes pagados. Prototipo documentado disponible.</p>
+      </div>
+    </div>
+    <div style="padding:16px 20px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07)">
+      <p style="font-size:.65rem;color:rgba(255,255,255,.4)">
+        <strong style="color:rgba(255,255,255,.65)">Estado actual:</strong> Ninguna postulación enviada a la fecha. Sección refleja instrumentos en evaluación activa.
+      </p>
+    </div>
+  </div>
+  <span class="slide-num">10 / 14</span>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 11 — ROADMAP                                                  -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="slide bg-dark" id="slide-11">
+  <div class="slide-inner">
+    <span class="eyebrow">HOJA DE RUTA</span>
+    <h2 class="section-title">0 a 9 meses.</h2>
+    <div class="roadmap">
+      <div class="roadmap-phase">
+        <p class="phase-label">MES 0–2</p>
+        <p class="phase-title">Validación comercial</p>
+        <ul class="phase-items">
+          <li>10–15 prospectos calificados</li>
+          <li>3–5 auditorías reales</li>
+          <li>Ajuste de precio y proceso</li>
+          <li>Postulación a fondo</li>
+          <li class="done">Evidence Pack Velora ✓</li>
+          <li class="done">Caso demo documentado ✓</li>
+          <li class="done">Landing section ✓</li>
+        </ul>
+      </div>
+      <div class="roadmap-phase">
+        <p class="phase-label">MES 3–4</p>
+        <p class="phase-title">Primeros clientes</p>
+        <ul class="phase-items">
+          <li>5 clientes pagados</li>
+          <li>Playbook sistematizado</li>
+          <li>Plantillas de reporte</li>
+          <li>Partner de revisión</li>
+          <li>Lista de espera SaaS</li>
+        </ul>
+      </div>
+      <div class="roadmap-phase">
+        <p class="phase-label">MES 5–6</p>
+        <p class="phase-title">Producto SaaS v1</p>
+        <ul class="phase-items">
+          <li>MVP con intake + dashboard</li>
+          <li>Integración GitHub</li>
+          <li>Scoring automatizado parcial</li>
+          <li>Beta cerrada</li>
+        </ul>
+      </div>
+      <div class="roadmap-phase">
+        <p class="phase-label">MES 7–9</p>
+        <p class="phase-title">Escala inicial</p>
+        <ul class="phase-items">
+          <li>Lanzamiento público SaaS</li>
+          <li>Freemium + planes pagados</li>
+          <li>Expansión a agencias</li>
+          <li>Primeros MRR</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <span class="slide-num">11 / 14</span>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 12 — USO DE FONDOS                                            -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="slide bg-warm" id="slide-12">
+  <div class="slide-inner">
+    <span class="eyebrow eyebrow-gold">USO DE FONDOS</span>
+    <h2 class="section-title">Distribución clara.<br/>Prioritario desde el inicio.</h2>
+    <div class="two-col" style="margin-top:30px">
+      <div>
+        <div class="fund-bars">
+          <div class="fund-bar-row"><span class="fund-label">Desarrollo de producto</span><div class="fund-track"><div class="fund-fill" style="width:35%"></div></div><span class="fund-pct">35%</span></div>
+          <div class="fund-bar-row"><span class="fund-label">Validación comercial</span><div class="fund-track"><div class="fund-fill" style="width:25%;opacity:.8"></div></div><span class="fund-pct">25%</span></div>
+          <div class="fund-bar-row"><span class="fund-label">Marketing y presencia</span><div class="fund-track"><div class="fund-fill" style="width:20%;opacity:.65"></div></div><span class="fund-pct">20%</span></div>
+          <div class="fund-bar-row"><span class="fund-label">Operación</span><div class="fund-track"><div class="fund-fill" style="width:12%;opacity:.5"></div></div><span class="fund-pct">12%</span></div>
+          <div class="fund-bar-row"><span class="fund-label">Diseño y UX</span><div class="fund-track"><div class="fund-fill" style="width:8%;opacity:.4"></div></div><span class="fund-pct">8%</span></div>
+        </div>
+        <p style="font-size:.58rem;color:rgba(255,255,255,.25);margin-top:18px">* Proyección referencial para fondo de CLP $15M–$25M. Ajustable según instrumento.</p>
+      </div>
+      <div>
+        <table>
+          <thead><tr><th>Fase</th><th>Prioridad</th></tr></thead>
+          <tbody>
+            <tr><td>Mes 1–3</td><td style="color:rgba(255,255,255,.6)">Validación + Marketing</td></tr>
+            <tr><td>Mes 4–6</td><td style="color:rgba(255,255,255,.6)">Producto SaaS</td></tr>
+            <tr><td>Mes 7–9</td><td style="color:rgba(255,255,255,.6)">Operación + Escala</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <span class="slide-num">12 / 14</span>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 13 — GO-TO-MARKET                                             -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="slide bg-cool" id="slide-13">
+  <div class="glow glow-green" style="right:-60px;bottom:20%"></div>
+  <div class="slide-inner">
+    <span class="eyebrow">GO-TO-MARKET</span>
+    <h2 class="section-title">Quién necesita Launch Guard.</h2>
+    <div class="segment-grid">
+      <div class="segment-card">
+        <p class="segment-num">SEGMENTO 01</p>
+        <strong>Fundadores de SaaS en etapa temprana</strong>
+        <p>Construyeron con IA. Están a punto de presentar a un fondo o lanzar. Sin QA formal. Dolor: miedo a que algo falle en la demo.</p>
+      </div>
+      <div class="segment-card">
+        <p class="segment-num">SEGMENTO 02</p>
+        <strong>Agencias de desarrollo digital</strong>
+        <p>Entregan productos a clientes finales. Necesitan evidencia de calidad. Dolor: cliente que detecta errores después de la entrega.</p>
+      </div>
+      <div class="segment-card">
+        <p class="segment-num">SEGMENTO 03</p>
+        <strong>Freelancers premium</strong>
+        <p>Construyen productos completos para un cliente. Quieren diferenciarse con proceso formal. Dolor: entregar sin documentación de qué está listo.</p>
+      </div>
+      <div class="segment-card">
+        <p class="segment-num">SEGMENTO 04</p>
+        <strong>Equipos con productos IA</strong>
+        <p>Plataformas con Cursor, Bolt, v0, Lovable. Alta velocidad, baja verificación. Dolor: no saber qué tan confiable es lo que construyeron.</p>
+      </div>
+    </div>
+    <p class="tagline" style="font-size:.88rem;margin-top:20px">"Launch Guard no es testing. Es una auditoría de preparación de lanzamiento."</p>
+  </div>
+  <span class="slide-num">13 / 14</span>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- SLIDE 14 — CIERRE                                                   -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="slide bg-cover" id="slide-14">
+  <div class="glow glow-green" style="left:50%;top:50%;transform:translate(-50%,-50%);width:700px;height:700px;opacity:.6"></div>
+  <div class="slide-inner">
+    <div class="close-layout">
+      <span class="eyebrow">CIERRE</span>
+      <h1 class="slide-title">Antes de lanzar,<br/>valida si está<br/><em>realmente listo.</em></h1>
+      <div class="proof-row">
+        <div class="proof-item"><span class="proof-dot"></span>17/17 capturas PASS</div>
+        <div class="proof-item"><span class="proof-dot"></span>Evidence Pack trazable</div>
+        <div class="proof-item"><span class="proof-dot"></span>Veredicto honesto</div>
+        <div class="proof-item"><span class="proof-dot"></span>Backlog accionable</div>
+      </div>
+      <div class="divider"></div>
+      <p class="lead" style="text-align:center;margin:0 auto;max-width:560px">
+        Si tienes un SaaS, app o producto digital a punto de presentar, lanzar o entregar — y quieres saber si está realmente listo — <strong style="color:white">hablemos.</strong>
+      </p>
+      <div style="margin-top:40px">
+        <p style="font-family:var(--serif);font-size:1.8rem;letter-spacing:.05em;margin-bottom:6px">Dafory Launch Guard</p>
+        <p style="font-size:.62rem;color:rgba(255,255,255,.3);letter-spacing:.14em">JULIO 2026 · v0.1 · USO CONFIDENCIAL</p>
+      </div>
+      <p style="font-size:.52rem;color:rgba(255,255,255,.15);margin-top:30px;letter-spacing:.06em">
+        Demo visual, no operación comercial real · Caso Velora Reservas Demo 001
+      </p>
+    </div>
+  </div>
+  <span class="slide-num">14 / 14</span>
+</section>
+
+</main>
+
+<script>
+  // Simple navigation dots
+  const slides = document.querySelectorAll('.slide');
+  const dotsContainer = document.getElementById('navDots');
+  const counter = document.getElementById('navCounter');
+  const total = slides.length;
+
+  slides.forEach((_, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'nav-dot' + (i === 0 ? ' active' : '');
+    btn.title = 'Slide ' + (i + 1);
+    btn.onclick = () => slides[i].scrollIntoView({ behavior: 'smooth' });
+    dotsContainer.appendChild(btn);
+  });
+
+  const dots = document.querySelectorAll('.nav-dot');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const idx = Array.from(slides).indexOf(entry.target);
+        dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+        counter.textContent = (idx + 1) + ' / ' + total;
+      }
+    });
+  }, { threshold: 0.5 });
+
+  slides.forEach(s => observer.observe(s));
+
+  // Keyboard navigation
+  document.addEventListener('keydown', e => {
+    const active = Array.from(dots).findIndex(d => d.classList.contains('active'));
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowRight') && active < total - 1) {
+      slides[active + 1].scrollIntoView({ behavior: 'smooth' });
+    }
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowLeft') && active > 0) {
+      slides[active - 1].scrollIntoView({ behavior: 'smooth' });
+    }
+  });
+</script>
+</body>
+</html>
