@@ -5,7 +5,9 @@ const { UnauthorizedException } = require("@nestjs/common");
 const { IS_PUBLIC_KEY, REQUIRE_AUTH_KEY } = require("../dist/auth/auth.constants.js");
 const { AuthGuard } = require("../dist/auth/auth.guard.js");
 const { AppConfig } = require("../dist/common/config/app-config.js");
+const { BusinessesController } = require("../dist/businesses/businesses.controller.js");
 const { TenantGuard } = require("../dist/tenancy/tenant.guard.js");
+const { TENANT_ROLES_KEY } = require("../dist/tenancy/tenant.constants.js");
 
 function executionContext(request) {
   return {
@@ -59,6 +61,38 @@ test("rechaza acceso cuando el rol de la membresía es insuficiente", () => {
     (error) => error.getStatus() === 403
       && error.getResponse().code === "TENANT_ROLE_FORBIDDEN",
   );
+});
+
+test("todos los endpoints administrativos exigen rol OWNER o ADMIN", () => {
+  const handlers = [
+    "overview",
+    "services",
+    "locations",
+    "createService",
+    "updateService",
+    "professionals",
+    "createProfessional",
+    "updateProfessional",
+    "replaceProfessionalServices",
+    "replaceProfessionalLocations",
+    "professionalAvailability",
+    "replaceProfessionalAvailability",
+    "replaceBusinessHours",
+    "customers",
+    "appointments",
+    "appointmentDetail",
+    "createAppointment",
+    "updateAppointmentStatus",
+    "dashboardCalendar",
+  ];
+
+  for (const handler of handlers) {
+    assert.deepEqual(
+      Reflect.getMetadata(TENANT_ROLES_KEY, BusinessesController.prototype[handler]),
+      ["OWNER", "ADMIN"],
+      `${handler} debe exigir OWNER o ADMIN`,
+    );
+  }
 });
 
 test("deriva el tenant solo desde la membresía autenticada", () => {

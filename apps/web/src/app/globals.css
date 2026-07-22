@@ -397,6 +397,10 @@ input[type="checkbox"], input[type="radio"] { width: 16px; height: 16px; min-wid
 .panel-heading a { color: #8c6139; font-weight: 700; }
 .admin-field-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
 .admin-field-grid .full { grid-column: 1/-1; }
+.admin-field-summary { display: grid; align-content: center; gap: 5px; min-height: 74px; padding: 12px 14px; border: 1px solid var(--admin-line); border-radius: 14px; background: var(--admin-surface-solid); }
+.admin-field-summary span,
+.admin-field-summary small { color: var(--admin-muted); font-size: .72rem; }
+.admin-field-summary strong { font-size: .9rem; }
 .admin-form-section { margin-top: 18px; padding: 16px; border: 1px solid #e9e4dc; background: #fbfaf7; display: grid; gap: 13px; }
 .admin-form-section__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .admin-form-section__header strong { font-size: .75rem; letter-spacing: .01em; }
@@ -439,6 +443,7 @@ input[type="checkbox"], input[type="radio"] { width: 16px; height: 16px; min-wid
 .admin-dialog__body { overflow-y: auto; padding: 22px 24px 24px; }
 .admin-dialog__footer { position: sticky; bottom: 0; z-index: 1; margin: 20px -24px -24px; padding: 16px 24px; border-top: 1px solid #ebe7df; background: rgba(255,253,249,.96); }
 .admin-slot-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(105px,1fr)); gap: 9px; }
+.admin-skeleton--slot { display: block; min-height: 58px; border-radius: 12px; }
 .admin-slot { min-height: 50px; border: 1px solid rgba(58,73,45,.18); background: rgba(255,255,255,.82); color: #2d3328; cursor: pointer; display: grid; gap: 2px; padding: 8px 10px; text-align: left; }
 .admin-slot:hover:not(:disabled), .admin-slot.is-selected { border-color: rgba(58,73,45,.95); background: rgba(58,73,45,.12); }
 .admin-slot:disabled { background: rgba(146,86,80,.08); color: #8d7169; cursor: not-allowed; }
@@ -797,6 +802,43 @@ input[type="checkbox"], input[type="radio"] { width: 16px; height: 16px; min-wid
   border-color: color-mix(in srgb, var(--admin-accent) 68%, var(--admin-line));
   background: var(--admin-accent-soft);
 }
+.admin-skeleton,
+.admin-skeleton-grid > div,
+.admin-skeleton-table > div {
+  display: block;
+  border-radius: 999px;
+  background: linear-gradient(100deg, #eee7dd 30%, #f8f3eb 48%, #eee7dd 66%);
+  background-size: 220% 100%;
+  animation: admin-skeleton-shimmer 1.6s ease-in-out infinite;
+}
+.admin-heading-skeleton { display: grid; gap: 10px; width: min(430px, 62vw); }
+.admin-skeleton--eyebrow { width: 118px; height: 9px; }
+.admin-skeleton--title { width: 180px; height: 52px; border-radius: 14px; }
+.admin-skeleton--line { width: 92px; height: 11px; }
+.admin-skeleton--line.admin-skeleton--wide { width: min(100%, 310px); }
+.admin-skeleton--button { width: 126px; height: 46px; }
+.admin-skeleton--icon { width: 38px; height: 38px; border-radius: 14px; }
+.admin-skeleton--metric { width: 62px; height: 36px; border-radius: 10px; }
+.admin-skeleton--subtitle { width: 150px; height: 20px; border-radius: 8px; }
+.admin-skeleton--pill { width: 72px; height: 28px; }
+.admin-metric-skeleton-grid article { display: grid; align-content: start; gap: 11px; }
+.admin-agenda-skeleton { min-height: 330px; }
+.admin-skeleton-table { display: grid; gap: 1px; overflow: hidden; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); background: var(--admin-line); }
+.admin-skeleton-table > div { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 24px; min-height: 70px; align-items: center; padding: 0 20px; border-radius: 0; background: var(--admin-surface-solid); }
+.admin-dialog-loading { display: grid; gap: 20px; min-height: 250px; align-content: center; }
+.admin-dialog-loading p { margin: 0; color: var(--admin-muted); text-align: center; font-size: .78rem; }
+.admin-skeleton-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.admin-skeleton-grid > div { min-height: 54px; border-radius: 14px; }
+.admin-dialog-retry { justify-content: flex-end; margin-top: 22px; gap: 12px; }
+.admin-inline-loading { display: flex; align-items: center; gap: 10px; min-height: 40px; margin-top: 12px; color: var(--admin-muted); font-size: .72rem; }
+.admin-inline-loading .admin-skeleton { flex: 0 0 90px; }
+.admin-message .button { margin-left: auto; flex: 0 0 auto; }
+@keyframes admin-skeleton-shimmer { to { background-position-x: -220%; } }
+@media (prefers-reduced-motion: reduce) {
+  .admin-skeleton,
+  .admin-skeleton-grid > div,
+  .admin-skeleton-table > div { animation: none; background-position: 0 0; }
+}
 
 /* ── Launch Guard Case Study Section (.lg-*) ─────────────────────────────────
    Namespace: .lg-   No collision with existing classes.
@@ -973,6 +1015,8 @@ input[type="checkbox"], input[type="radio"] { width: 16px; height: 16px; min-wid
   .mobile-admin-nav summary { min-height: 42px; display: inline-flex; align-items: center; border: 1px solid var(--admin-line); border-radius: 999px; background: rgba(255,255,255,.82); font-size: .76rem; font-weight: 800; padding: 0 14px; cursor: pointer; }
   .mobile-admin-nav nav { position: absolute; left: 0; top: 50px; width: min(250px, calc(100vw - 28px)); display: flex; flex-direction: column; background: var(--admin-surface-solid); box-shadow: var(--admin-shadow); border: 1px solid var(--admin-line); border-radius: 18px; overflow: hidden; }
   .mobile-admin-nav nav a { padding: 13px 15px; font-size: .78rem; border-bottom: 1px solid #eee7dd; }
+  .mobile-admin-nav .admin-session-summary { margin: 0; padding: 14px; border: 0; background: var(--admin-deep); color: white; }
+  .mobile-admin-nav .admin-session-summary small { color: rgba(255,255,255,.65); }
   .vertical-switch { margin-left: auto; flex: 0 0 auto; }
   .vertical-switch > span { display: none; }
   .vertical-switch a { padding: 8px 11px; font-size: .72rem; }
@@ -981,6 +1025,8 @@ input[type="checkbox"], input[type="radio"] { width: 16px; height: 16px; min-wid
   .admin-heading h1 { font-size: 2.25rem; }
   .admin-heading p { font-size: .88rem; }
   .admin-heading .button { display: inline-flex; width: 100%; }
+  .admin-heading-skeleton { width: 100%; }
+  .admin-heading .admin-skeleton--button { width: 100%; }
   .metric-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
   .metric-grid article { min-height: 116px; padding: 16px; border-radius: 16px; }
   .metric-grid small { font-size: .66rem; }
@@ -997,6 +1043,7 @@ input[type="checkbox"], input[type="radio"] { width: 16px; height: 16px; min-wid
   .admin-dialog__body { padding: 16px; }
   .admin-dialog__footer { position: static; margin: 18px -16px -16px; padding: 14px 16px; }
   .admin-slot-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .admin-skeleton-table > div { grid-template-columns: repeat(2, minmax(0, 1fr)); min-height: 112px; gap: 14px; padding: 16px; }
   .table-head { display: none; }
   .admin-table { display: grid; gap: 12px; border: 0; background: transparent; }
   .table-row { display: grid; grid-template-columns: 1fr; padding: 16px; gap: 12px; border: 1px solid var(--admin-line); border-radius: var(--admin-radius); background: var(--admin-surface-solid); box-shadow: 0 12px 32px rgba(42,34,24,.06); }
@@ -1047,3 +1094,45 @@ input[type="checkbox"], input[type="radio"] { width: 16px; height: 16px; min-wid
   .admin-content { padding: 0; }
   .confirmation-card { box-shadow: none; border: 1px solid #ccc; }
 }
+
+.admin-login-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 32px 18px;
+  color: #1e1a16;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(190, 149, 89, .24), transparent 30%),
+    radial-gradient(circle at 82% 88%, rgba(92, 76, 56, .18), transparent 32%),
+    linear-gradient(145deg, #17130f, #2a2119 48%, #15120f);
+}
+
+.admin-login-card {
+  width: min(100%, 470px);
+  padding: clamp(28px, 6vw, 48px);
+  border: 1px solid rgba(255, 255, 255, .52);
+  border-radius: 28px;
+  background: rgba(252, 249, 244, .94);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, .34);
+  backdrop-filter: blur(20px);
+}
+
+.admin-login-brand { display: inline-flex; flex-direction: column; margin-bottom: 38px; color: inherit; }
+.admin-login-brand span { font-family: var(--font-display); font-size: 1.8rem; line-height: .9; }
+.admin-login-brand small { margin-top: 7px; font-size: .55rem; font-weight: 800; letter-spacing: .28em; }
+.admin-login-copy h1 { margin: 8px 0 10px; font-family: var(--font-display); font-size: clamp(2.15rem, 7vw, 3.2rem); font-weight: 500; letter-spacing: -.04em; }
+.admin-login-copy p, .admin-login-help { color: #70665c; font-size: .9rem; line-height: 1.6; }
+.admin-login-error { margin-top: 22px; padding: 13px 15px; border: 1px solid rgba(145, 61, 46, .24); border-radius: 14px; color: #743d34; background: #f9ece8; font-size: .8rem; line-height: 1.45; }
+.admin-login-form { display: grid; gap: 17px; margin-top: 26px; }
+.admin-login-form label { display: grid; gap: 8px; color: #4f473f; font-size: .7rem; font-weight: 800; letter-spacing: .04em; }
+.admin-login-form input { width: 100%; min-height: 50px; padding: 0 15px; border: 1px solid #d9d0c5; border-radius: 13px; color: #1e1a16; background: rgba(255, 255, 255, .82); font: inherit; font-size: .95rem; outline: none; }
+.admin-login-form input:focus { border-color: #9a7443; box-shadow: 0 0 0 3px rgba(154, 116, 67, .14); }
+.admin-login-form .button { width: 100%; min-height: 52px; margin-top: 4px; }
+.admin-login-help { margin: 24px 0 0; text-align: center; font-size: .72rem; }
+.admin-session-summary { gap: 9px; }
+.admin-session-summary > span:nth-child(2) { min-width: 0; }
+.admin-session-summary small { max-width: 132px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-session-summary form { margin-left: auto; }
+.admin-session-summary button { border: 0; color: rgba(255, 255, 255, .72); background: transparent; cursor: pointer; font-size: .68rem; font-weight: 800; }
+.admin-session-summary button:hover, .admin-session-summary button:focus-visible { color: white; text-decoration: underline; }
+.admin-topbar .vertical-switch { max-width: min(64vw, 720px); overflow-x: auto; }

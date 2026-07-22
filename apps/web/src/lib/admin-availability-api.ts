@@ -1,11 +1,6 @@
-import type { BusinessVertical } from "@/types/demo";
+import { getAuthenticatedAdminApiConfig, type AdminApiConfig } from "@/lib/admin-api";
 
 const ADMIN_AVAILABILITY_AUTH_MESSAGE = "Configuracion o sesion pendiente. No pudimos cargar horarios reales. Revisa la sesion de administrador.";
-
-const businessSlugByVertical: Record<BusinessVertical, string> = {
-  barberia: "velora-barberia-demo",
-  belleza: "velora-beauty-studio-demo",
-};
 
 export type AdminAvailabilityStatus = "ACTIVE" | "INACTIVE";
 export type AdminAvailabilityWeekday =
@@ -123,11 +118,6 @@ export interface AdminProfessionalAvailabilityMutationInput {
   rules: AdminProfessionalAvailabilityRuleInput[];
 }
 
-interface AdminApiConfig {
-  apiUrl: string;
-  token: string;
-}
-
 interface ApiErrorResponse {
   code?: string;
   message?: string;
@@ -157,18 +147,10 @@ class AdminAvailabilityLoadError extends Error {
 }
 
 export async function getAdminAvailabilityData(
-  vertical: BusinessVertical,
+  businessSlug: string,
   requestedProfessionalId?: string,
 ): Promise<AdminAvailabilityLoadState> {
-  const config = getAdminApiConfig();
-  if (!config.ok) {
-    return {
-      status: "MISSING_CONFIG",
-      message: config.message,
-    };
-  }
-
-  const businessSlug = businessSlugByVertical[vertical];
+  const config = await getAuthenticatedAdminApiConfig(businessSlug);
 
   try {
     const professionalsPayload = await getAdminApi<unknown>(
@@ -229,14 +211,7 @@ export async function getAdminAvailabilityData(
 export async function updateBusinessHours(
   input: AdminBusinessHoursMutationInput,
 ): Promise<AdminAvailabilityMutationResult> {
-  const config = getAdminApiConfig();
-  if (!config.ok) {
-    return {
-      ok: false,
-      code: "ADMIN_AVAILABILITY_CONFIG_MISSING",
-      message: config.message,
-    };
-  }
+  const config = await getAuthenticatedAdminApiConfig(input.businessSlug);
 
   return mutateAvailability(config, `/businesses/${input.businessSlug}/business-hours`, {
     hours: input.hours,
@@ -246,14 +221,7 @@ export async function updateBusinessHours(
 export async function updateProfessionalAvailability(
   input: AdminProfessionalAvailabilityMutationInput,
 ): Promise<AdminAvailabilityMutationResult> {
-  const config = getAdminApiConfig();
-  if (!config.ok) {
-    return {
-      ok: false,
-      code: "ADMIN_AVAILABILITY_CONFIG_MISSING",
-      message: config.message,
-    };
-  }
+  const config = await getAuthenticatedAdminApiConfig(input.businessSlug);
 
   return mutateAvailability(
     config,
@@ -508,26 +476,6 @@ function requireTimeOff(payload: unknown): AdminAvailabilityTimeOff[] {
       status: value.status,
     };
   });
-}
-
-function getAdminApiConfig():
-  | { ok: true; apiUrl: string; token: string }
-  | { ok: false; message: string } {
-  const apiUrl = process.env.VELORA_API_URL?.replace(/\/+$/, "");
-  const token = process.env.VELORA_ADMIN_DEV_TOKEN;
-
-  if (!apiUrl || !token) {
-    return {
-      ok: false,
-      message: ADMIN_AVAILABILITY_AUTH_MESSAGE,
-    };
-  }
-
-  return {
-    ok: true,
-    apiUrl,
-    token,
-  };
 }
 
 function mapAdminAvailabilityError(code: string): string {

@@ -9,12 +9,14 @@ import {
   type AdminServiceMutationResult,
   type AdminServiceStatus,
 } from "@/lib/admin-services-api";
+import { requireAdminBusiness } from "@/lib/admin-auth";
 
 const ALLOWED_STATUSES = new Set(["ACTIVE", "INACTIVE", "ARCHIVED"]);
 
 export async function createAdminServiceAction(
   input: AdminServiceMutationInput,
 ): Promise<AdminServiceMutationResult> {
+  await requireAdminBusiness(input.businessSlug);
   const validation = validateServiceInput(input);
   if (!validation.ok) {
     return validation;
@@ -29,6 +31,7 @@ export async function createAdminServiceAction(
 export async function updateAdminServiceAction(
   input: AdminServiceMutationInput & { serviceId?: string },
 ): Promise<AdminServiceMutationResult> {
+  await requireAdminBusiness(input.businessSlug);
   if (!isNonEmptyString(input.serviceId)) {
     return {
       ok: false,

@@ -1,11 +1,6 @@
-import type { BusinessVertical } from "@/types/demo";
+import { getAuthenticatedAdminApiConfig, type AdminApiConfig } from "@/lib/admin-api";
 
 const ADMIN_PROFESSIONALS_AUTH_MESSAGE = "Configuracion o sesion pendiente. No pudimos cargar profesionales reales. Revisa la sesion de administrador.";
-
-const businessSlugByVertical: Record<BusinessVertical, string> = {
-  barberia: "velora-barberia-demo",
-  belleza: "velora-beauty-studio-demo",
-};
 
 export type AdminProfessionalStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
 
@@ -98,11 +93,6 @@ export type AdminProfessionalMutationResult =
       requestId?: string;
     };
 
-interface AdminApiConfig {
-  apiUrl: string;
-  token: string;
-}
-
 class AdminProfessionalsLoadError extends Error {
   constructor(message: string, readonly status?: number) {
     super(message);
@@ -111,17 +101,9 @@ class AdminProfessionalsLoadError extends Error {
 }
 
 export async function getAdminProfessionalsData(
-  vertical: BusinessVertical,
+  businessSlug: string,
 ): Promise<AdminProfessionalsLoadState> {
-  const config = getAdminApiConfig();
-  if (!config.ok) {
-    return {
-      status: "MISSING_CONFIG",
-      message: config.message,
-    };
-  }
-
-  const businessSlug = businessSlugByVertical[vertical];
+  const config = await getAuthenticatedAdminApiConfig(businessSlug);
 
   try {
     const [professionalsPayload, servicesPayload, locationsPayload] = await Promise.all([
@@ -158,14 +140,7 @@ export async function getAdminProfessionalsData(
 export async function createAdminProfessional(
   input: AdminProfessionalMutationInput,
 ): Promise<AdminProfessionalMutationResult> {
-  const config = getAdminApiConfig();
-  if (!config.ok) {
-    return {
-      ok: false,
-      code: "ADMIN_PROFESSIONALS_CONFIG_MISSING",
-      message: config.message,
-    };
-  }
+  const config = await getAuthenticatedAdminApiConfig(input.businessSlug);
 
   return mutateAdminProfessional(
     config,
@@ -178,14 +153,7 @@ export async function createAdminProfessional(
 export async function updateAdminProfessional(
   input: AdminProfessionalMutationInput & { professionalId: string },
 ): Promise<AdminProfessionalMutationResult> {
-  const config = getAdminApiConfig();
-  if (!config.ok) {
-    return {
-      ok: false,
-      code: "ADMIN_PROFESSIONALS_CONFIG_MISSING",
-      message: config.message,
-    };
-  }
+  const config = await getAuthenticatedAdminApiConfig(input.businessSlug);
 
   return mutateAdminProfessional(
     config,
@@ -198,14 +166,7 @@ export async function updateAdminProfessional(
 export async function updateAdminProfessionalServices(
   input: AdminProfessionalServicesInput,
 ): Promise<AdminProfessionalMutationResult> {
-  const config = getAdminApiConfig();
-  if (!config.ok) {
-    return {
-      ok: false,
-      code: "ADMIN_PROFESSIONALS_CONFIG_MISSING",
-      message: config.message,
-    };
-  }
+  const config = await getAuthenticatedAdminApiConfig(input.businessSlug);
 
   return mutateAdminProfessional(
     config,
@@ -218,14 +179,7 @@ export async function updateAdminProfessionalServices(
 export async function updateAdminProfessionalLocations(
   input: AdminProfessionalLocationsInput,
 ): Promise<AdminProfessionalMutationResult> {
-  const config = getAdminApiConfig();
-  if (!config.ok) {
-    return {
-      ok: false,
-      code: "ADMIN_PROFESSIONALS_CONFIG_MISSING",
-      message: config.message,
-    };
-  }
+  const config = await getAuthenticatedAdminApiConfig(input.businessSlug);
 
   return mutateAdminProfessional(
     config,
@@ -480,26 +434,6 @@ function requireLocation(payload: unknown): AdminProfessionalLocationOption {
     addressLine: typeof value.addressLine === "string" ? value.addressLine : null,
     city: typeof value.city === "string" ? value.city : null,
     status: value.status,
-  };
-}
-
-function getAdminApiConfig():
-  | { ok: true; apiUrl: string; token: string }
-  | { ok: false; message: string } {
-  const apiUrl = process.env.VELORA_API_URL?.replace(/\/+$/, "");
-  const token = process.env.VELORA_ADMIN_DEV_TOKEN;
-
-  if (!apiUrl || !token) {
-    return {
-      ok: false,
-      message: ADMIN_PROFESSIONALS_AUTH_MESSAGE,
-    };
-  }
-
-  return {
-    ok: true,
-    apiUrl,
-    token,
   };
 }
 
