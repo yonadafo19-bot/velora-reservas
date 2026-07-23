@@ -8,6 +8,7 @@ import {
   loadAdminAppointmentAvailabilityAction,
   loadAdminAppointmentFormAction,
 } from "@/app/admin/citas/actions";
+import { operationalDisplayName } from "@/lib/admin-display";
 import { formatClp, formatDuration } from "@/lib/formatting";
 import type {
   AdminAppointmentAvailabilityLoadState,
@@ -128,7 +129,7 @@ export function AdminNewAppointmentPanel({ businessSlug }: { businessSlug: strin
                   locationId: "",
                   time: "",
                 }));
-                setDialogError("Las opciones de profesional o ubicaciÃ³n cambiaron. Vuelve a elegirlas e intenta nuevamente.");
+                setDialogError("Las opciones de profesional o ubicación cambiaron. Vuelve a elegirlas e intenta nuevamente.");
                 startFormTransition(async () => {
                   setForm(await loadAdminAppointmentFormAction(businessSlug));
                 });
@@ -348,9 +349,9 @@ function AppointmentFormDialog({
             onChange({ professionalId, locationId, time: "" });
           }} disabled={!formState.serviceId}><option value="">{formState.serviceId ? "Selecciona profesional" : "Selecciona un servicio primero"}</option>{compatibleProfessionals.map((professional) => <option key={professional.id} value={professional.id}>{professional.displayName}{professional.roleTitle ? ` - ${professional.roleTitle}` : ""}</option>)}</select></label>
           {compatibleLocations.length === 1 && selectedLocation
-            ? <div className="admin-field-summary"><span>Ubicaci&oacute;n</span><strong>{selectedLocation.name}</strong><small>Asignada al profesional seleccionado</small></div>
+            ? <div className="admin-field-summary"><span>Ubicaci&oacute;n</span><strong>{operationalDisplayName(selectedLocation.name)}</strong><small>Asignada al profesional seleccionado</small></div>
             :
-          <label>Ubicación<select value={formState.locationId} onChange={(event) => onChange({ locationId: event.target.value, time: "" })} disabled={isAvailabilityPending || !formState.professionalId || compatibleLocations.length === 0}><option value="">{isAvailabilityPending ? "Consultando disponibilidad…" : "Selecciona ubicación"}</option>{compatibleLocations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>
+          <label>Ubicación<select value={formState.locationId} onChange={(event) => onChange({ locationId: event.target.value, time: "" })} disabled={isAvailabilityPending || !formState.professionalId || compatibleLocations.length === 0}><option value="">{isAvailabilityPending ? "Consultando disponibilidad…" : "Selecciona ubicación"}</option>{compatibleLocations.map((location) => <option key={location.id} value={location.id}>{operationalDisplayName(location.name)}</option>)}</select></label>
           }
         </div>
         {isAvailabilityPending
@@ -388,7 +389,7 @@ function AppointmentFormDialog({
             <strong>Resumen</strong>
             {selectedService ? `${selectedService.name} - ${formatDuration(selectedService.durationMinutes)} - ${formatClp(selectedService.priceFrom)}` : "Selecciona un servicio."}
             {selectedProfessional ? ` Profesional: ${selectedProfessional.displayName}.` : ""}
-            {selectedLocation ? ` Ubicación: ${selectedLocation.name}.` : ""}
+            {selectedLocation ? ` Ubicación: ${operationalDisplayName(selectedLocation.name)}.` : ""}
             {formState.time ? ` Hora: ${formState.time}.` : ""}
           </span>
         </div>

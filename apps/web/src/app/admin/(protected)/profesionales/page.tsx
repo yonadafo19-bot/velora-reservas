@@ -1,4 +1,5 @@
 import { AdminProfessionalsPanel } from "@/components/admin/admin-professionals-panel";
+import { operationalBusinessName } from "@/components/admin/admin-session-nav";
 import { getAdminPageContext } from "@/lib/admin-page";
 import { getAdminProfessionalsData } from "@/lib/admin-professionals-api";
 
@@ -12,9 +13,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ n
   return <div className="admin-content">
         <div className="admin-heading">
           <div>
-            <span className="eyebrow">{business.businessName.toUpperCase()}</span>
-            <h1>Profesionales</h1>
-            <p>Gestiona el equipo real y sus servicios disponibles para agenda.</p>
+            <span className="eyebrow">{operationalBusinessName(business.businessName).toUpperCase()}</span>
+            <h1>Equipo</h1>
+            <p>Gestiona el equipo y sus servicios disponibles para la agenda.</p>
           </div>
         </div>
         <AdminProfessionalsPanel state={professionalsState}/>

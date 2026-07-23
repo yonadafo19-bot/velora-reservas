@@ -1,6 +1,6 @@
 import { getAuthenticatedAdminApiConfig, type AdminApiConfig } from "@/lib/admin-api";
 
-const ADMIN_SERVICES_AUTH_MESSAGE = "Configuracion o sesion pendiente. No pudimos cargar servicios reales. Revisa la sesion de administrador.";
+const ADMIN_SERVICES_AUTH_MESSAGE = "No pudimos cargar los servicios. Revisa tu sesión e intenta nuevamente.";
 
 export type AdminServiceStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
 
@@ -102,7 +102,7 @@ export async function getAdminServicesData(
 
     return {
       status: "API_ERROR",
-      message: "No pudimos cargar servicios reales. Intenta nuevamente.",
+      message: "No pudimos cargar los servicios. Intenta nuevamente.",
       httpStatus: error instanceof AdminServicesLoadError ? error.status : undefined,
     };
   }

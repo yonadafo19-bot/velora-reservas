@@ -7,6 +7,7 @@ import {
   updateBusinessHoursAction,
   updateProfessionalAvailabilityAction,
 } from "@/app/admin/horarios/actions";
+import { operationalDisplayName } from "@/lib/admin-display";
 import type {
   AdminAvailabilityData,
   AdminAvailabilityLoadState,
@@ -39,9 +40,9 @@ const defaultEnd = "18:00";
 export function AdminAvailabilityPanel({ state }: { state: AdminAvailabilityLoadState }) {
   if (state.status === "MISSING_CONFIG") {
     return <AvailabilityStateNotice
-      title="Horarios reales no disponibles"
+      title="Horarios no disponibles"
       message={state.message}
-      status="MISSING_CONFIG"
+      label="Revisión necesaria"
       mode="warning"
     />;
   }
@@ -49,8 +50,8 @@ export function AdminAvailabilityPanel({ state }: { state: AdminAvailabilityLoad
   if (state.status === "API_ERROR") {
     return <AvailabilityStateNotice
       title="No pudimos cargar horarios"
-      message={state.httpStatus ? `${state.message} Codigo HTTP: ${state.httpStatus}.` : state.message}
-      status="API_ERROR"
+      message={state.message}
+      label="No disponible"
       mode="error"
     />;
   }
@@ -59,7 +60,7 @@ export function AdminAvailabilityPanel({ state }: { state: AdminAvailabilityLoad
     return <AvailabilityStateNotice
       title="Faltan profesionales activos"
       message={state.message}
-      status="NEEDS_PROFESSIONALS"
+      label="Equipo pendiente"
       mode="warning"
     />;
   }
@@ -141,14 +142,14 @@ function ConnectedAvailabilityPanel({
 
   return <div style={{ display: "grid", gap: 18 }}>
     <div className="metric-grid">
-      <article><small>Profesionales activos</small><strong>{data.professionals.length}</strong><em>Fuente API real</em></article>
+      <article><small>Profesionales activos</small><strong>{data.professionals.length}</strong><em>Equipo disponible</em></article>
       <article><small>Sucursales activas</small><strong>{data.locations.length}</strong><em>{data.businessTimezone}</em></article>
       <article><small>Negocio</small><strong>{activeBusinessDays}</strong><em>Dias activos</em></article>
       <article><small>Profesional</small><strong>{activeProfessionalDays}</strong><em>Dias disponibles</em></article>
     </div>
 
     {needsLocationMessage && <div className="admin-message admin-message--warning">
-      <span><strong>NEEDS_LOCATION</strong>{needsLocationMessage}</span>
+      <span><strong>Selecciona una sucursal</strong>{needsLocationMessage}</span>
     </div>}
 
     <section className="admin-panel">
@@ -157,7 +158,7 @@ function ConnectedAvailabilityPanel({
           <h2>Horario de negocio</h2>
           <p>Horario semanal base en America/Santiago.</p>
         </div>
-        <span className="status status--confirmed">REAL_CONNECTED</span>
+        <span className="status status--confirmed">Disponible</span>
       </div>
       <ScheduleEditor rows={businessRows} disabled={isPending} onChange={(nextRows) => {
         setBusinessRows(nextRows);
@@ -197,7 +198,7 @@ function ConnectedAvailabilityPanel({
         >
           {data.locations.length === 0
             ? <option value="">Sin sucursales activas</option>
-            : data.locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+            : data.locations.map((location) => <option key={location.id} value={location.id}>{operationalDisplayName(location.name)}</option>)}
         </select></label>
       </div>
       <ScheduleEditor rows={professionalRows} disabled={isPending || !selectedLocationId} onChange={(nextRows) => {
@@ -213,11 +214,11 @@ function ConnectedAvailabilityPanel({
       <div className="panel-heading">
         <div>
           <h2>Bloqueos y excepciones</h2>
-          <p>Vista solo lectura de timeOff activo entregado por API.</p>
+          <p>Períodos bloqueados para el profesional o sus sucursales.</p>
         </div>
       </div>
       {data.timeOff.length === 0
-        ? <div className="admin-message admin-message--info"><span><strong>Sin bloqueos activos</strong>No hay timeOff futuro para este profesional o sus sucursales.</span></div>
+        ? <div className="admin-message admin-message--info"><span><strong>Sin bloqueos activos</strong>No hay períodos bloqueados próximos para este profesional o sus sucursales.</span></div>
         : <div className="admin-table">
           <div className="table-head"><span>Inicio</span><span>Fin</span><span>Sucursal</span><span>Estado</span></div>
           {data.timeOff.map((entry) => <div className="table-row" key={entry.id}>
@@ -277,12 +278,12 @@ function ScheduleEditor({
 function AvailabilityStateNotice({
   title,
   message,
-  status,
+  label,
   mode,
 }: {
   title: string;
   message: string;
-  status: "MISSING_CONFIG" | "API_ERROR" | "NEEDS_PROFESSIONALS";
+  label: string;
   mode: "warning" | "error";
 }) {
   return <section className="admin-panel">
@@ -291,10 +292,10 @@ function AvailabilityStateNotice({
         <h2>{title}</h2>
         <p>{message}</p>
       </div>
-      <span className={`status ${mode === "warning" ? "status--pending" : "status--cancelled"}`}>{status}</span>
+      <span className={`status ${mode === "warning" ? "status--pending" : "status--cancelled"}`}>{label}</span>
     </div>
     <div className="admin-message admin-message--warning">
-      <span><strong>No se muestran datos demo</strong>Configura el API para operar con horarios reales persistentes.</span>
+      <span><strong>Revisa la configuración</strong>Completa la conexión del negocio para administrar sus horarios.</span>
     </div>
   </section>;
 }

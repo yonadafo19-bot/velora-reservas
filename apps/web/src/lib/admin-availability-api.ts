@@ -1,6 +1,6 @@
 import { getAuthenticatedAdminApiConfig, type AdminApiConfig } from "@/lib/admin-api";
 
-const ADMIN_AVAILABILITY_AUTH_MESSAGE = "Configuracion o sesion pendiente. No pudimos cargar horarios reales. Revisa la sesion de administrador.";
+const ADMIN_AVAILABILITY_AUTH_MESSAGE = "No pudimos cargar los horarios. Revisa tu sesión e intenta nuevamente.";
 
 export type AdminAvailabilityStatus = "ACTIVE" | "INACTIVE";
 export type AdminAvailabilityWeekday =
@@ -165,7 +165,7 @@ export async function getAdminAvailabilityData(
       return {
         status: "NEEDS_PROFESSIONALS",
         businessSlug,
-        message: "Crea o activa profesionales antes de configurar disponibilidad real.",
+        message: "Crea o activa integrantes del equipo antes de configurar su disponibilidad.",
       };
     }
 
@@ -202,7 +202,7 @@ export async function getAdminAvailabilityData(
 
     return {
       status: "API_ERROR",
-      message: "No pudimos cargar horarios reales. Intenta nuevamente.",
+      message: "No pudimos cargar los horarios. Intenta nuevamente.",
       httpStatus: error instanceof AdminAvailabilityLoadError ? error.status : undefined,
     };
   }

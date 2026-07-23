@@ -1,4 +1,5 @@
 import { AdminAvailabilityPanel } from "@/components/admin/admin-availability-panel";
+import { operationalBusinessName } from "@/components/admin/admin-session-nav";
 import { getAdminAvailabilityData } from "@/lib/admin-availability-api";
 import { getAdminPageContext } from "@/lib/admin-page";
 
@@ -13,9 +14,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ n
   return <div className="admin-content">
         <div className="admin-heading">
           <div>
-            <span className="eyebrow">{business.businessName.toUpperCase()}</span>
+            <span className="eyebrow">{operationalBusinessName(business.businessName).toUpperCase()}</span>
             <h1>Horarios</h1>
-            <p>Gestiona horarios reales del negocio y disponibilidad semanal del equipo.</p>
+            <p>Gestiona los horarios del negocio y la disponibilidad semanal del equipo.</p>
           </div>
         </div>
         <AdminAvailabilityPanel state={availabilityState}/>

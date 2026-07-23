@@ -4,7 +4,7 @@ import { getAuthenticatedAdminApiConfig } from "@/lib/admin-api";
 const DEFAULT_TIME_ZONE = "America/Santiago";
 const DEFAULT_RANGE_DAYS = 7;
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
-const ADMIN_CALENDAR_AUTH_MESSAGE = "Configuración o sesión pendiente. No pudimos cargar la agenda real. Revisa la sesión de administrador.";
+const ADMIN_CALENDAR_AUTH_MESSAGE = "No pudimos cargar la agenda. Revisa tu sesión e intenta nuevamente.";
 
 class AdminCalendarLoadError extends Error {
   constructor(message: string, readonly status?: number) {

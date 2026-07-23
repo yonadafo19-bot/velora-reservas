@@ -1,6 +1,6 @@
 import { getAuthenticatedAdminApiConfig, type AdminApiConfig } from "@/lib/admin-api";
 
-const ADMIN_PROFESSIONALS_AUTH_MESSAGE = "Configuracion o sesion pendiente. No pudimos cargar profesionales reales. Revisa la sesion de administrador.";
+const ADMIN_PROFESSIONALS_AUTH_MESSAGE = "No pudimos cargar el equipo. Revisa tu sesión e intenta nuevamente.";
 
 export type AdminProfessionalStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
 
@@ -131,7 +131,7 @@ export async function getAdminProfessionalsData(
 
     return {
       status: "API_ERROR",
-      message: "No pudimos cargar profesionales reales. Intenta nuevamente.",
+      message: "No pudimos cargar el equipo. Intenta nuevamente.",
       httpStatus: error instanceof AdminProfessionalsLoadError ? error.status : undefined,
     };
   }
@@ -451,11 +451,11 @@ function mapAdminProfessionalError(code: string): string {
     ADMIN_PROFESSIONAL_ASSIGNMENT_CONFLICT: "La asignacion del profesional ya existe. Intenta guardar nuevamente.",
     ADMIN_PROFESSIONAL_CONFLICT: "Los datos del profesional entran en conflicto con registros existentes.",
     ADMIN_PROFESSIONAL_RELATION_INVALID: "Servicio, sucursal o profesional no disponible para este negocio.",
-    ADMIN_PROFESSIONAL_HTTP_ERROR: "No pudimos guardar el profesional. El API devolvio una respuesta inesperada.",
-    ADMIN_PROFESSIONAL_NETWORK_ERROR: "No pudimos conectar con el API para guardar el profesional.",
-    ADMIN_PROFESSIONAL_RESPONSE_INVALID: "El API guardo o respondio con un formato inesperado. Revisa la consola del servidor.",
+    ADMIN_PROFESSIONAL_HTTP_ERROR: "No pudimos guardar el profesional. Intenta nuevamente.",
+    ADMIN_PROFESSIONAL_NETWORK_ERROR: "No pudimos guardar el profesional. Revisa tu conexión e intenta nuevamente.",
+    ADMIN_PROFESSIONAL_RESPONSE_INVALID: "No pudimos confirmar el guardado. Intenta nuevamente.",
     TENANT_BUSINESS_MISMATCH: "No tienes acceso a este negocio.",
-    INTERNAL_SERVER_ERROR: "El API no pudo completar el guardado. Revisa el requestId en la consola del servidor.",
+    INTERNAL_SERVER_ERROR: "No pudimos completar el guardado. Intenta nuevamente.",
   };
 
   return messages[code] ?? "No pudimos guardar el profesional. Intenta nuevamente.";
