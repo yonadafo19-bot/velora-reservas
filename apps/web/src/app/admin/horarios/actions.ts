@@ -13,6 +13,7 @@ import {
   type AdminProfessionalAvailabilityMutationInput,
   type AdminProfessionalAvailabilityRuleInput,
 } from "@/lib/admin-availability-api";
+import { requireAdminBusiness } from "@/lib/admin-auth";
 
 const ALLOWED_WEEKDAYS = new Set(["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"]);
 const ALLOWED_STATUSES = new Set(["ACTIVE", "INACTIVE"]);
@@ -21,6 +22,7 @@ const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 export async function updateBusinessHoursAction(
   input: AdminBusinessHoursMutationInput,
 ): Promise<AdminAvailabilityMutationResult> {
+  await requireAdminBusiness(input.businessSlug);
   const validation = validateBusinessHoursInput(input);
   if (!validation.ok) {
     return validation;
@@ -35,6 +37,7 @@ export async function updateBusinessHoursAction(
 export async function updateProfessionalAvailabilityAction(
   input: AdminProfessionalAvailabilityMutationInput,
 ): Promise<AdminAvailabilityMutationResult> {
+  await requireAdminBusiness(input.businessSlug);
   const validation = validateProfessionalAvailabilityInput(input);
   if (!validation.ok) {
     return validation;

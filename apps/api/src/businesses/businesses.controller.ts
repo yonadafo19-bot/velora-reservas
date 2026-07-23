@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Put, Query } from "@nestjs/common";
+import type { MembershipRole } from "@velora/types";
 
 import type { TenantContext } from "../common/types/request-user";
 import { CurrentTenant } from "../tenancy/current-tenant.decorator";
@@ -37,6 +38,8 @@ import { BusinessProfessionalAvailabilityService } from "./business-professional
 import { BusinessProfessionalsService } from "./business-professionals.service";
 import { BusinessServicesService } from "./business-services.service";
 
+const ADMIN_ROLES: MembershipRole[] = ["OWNER" as MembershipRole, "ADMIN" as MembershipRole];
+
 @Controller("businesses")
 export class BusinessesController {
   constructor(
@@ -56,19 +59,19 @@ export class BusinessesController {
   ) {}
 
   @Get(":businessSlug/overview")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   overview(@CurrentTenant() tenant: TenantContext) {
     return this.businessOverview.getOverview(tenant);
   }
 
   @Get(":businessSlug/services")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   services(@CurrentTenant() tenant: TenantContext) {
     return this.businessServices.listServices(tenant);
   }
 
   @Get(":businessSlug/locations")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   locations(
     @CurrentTenant() tenant: TenantContext,
     @Param("businessSlug") businessSlug: string,
@@ -77,7 +80,7 @@ export class BusinessesController {
   }
 
   @Post(":businessSlug/services")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   createService(
     @CurrentTenant() tenant: TenantContext,
     @Param("businessSlug") businessSlug: string,
@@ -87,7 +90,7 @@ export class BusinessesController {
   }
 
   @Patch(":businessSlug/services/:serviceId")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   updateService(
     @CurrentTenant() tenant: TenantContext,
     @Param("businessSlug") businessSlug: string,
@@ -98,13 +101,13 @@ export class BusinessesController {
   }
 
   @Get(":businessSlug/professionals")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   professionals(@CurrentTenant() tenant: TenantContext) {
     return this.businessProfessionals.listProfessionals(tenant);
   }
 
   @Post(":businessSlug/professionals")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   createProfessional(
     @CurrentTenant() tenant: TenantContext,
     @Param("businessSlug") businessSlug: string,
@@ -114,7 +117,7 @@ export class BusinessesController {
   }
 
   @Patch(":businessSlug/professionals/:professionalId")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   updateProfessional(
     @CurrentTenant() tenant: TenantContext,
     @Param("businessSlug") businessSlug: string,
@@ -130,7 +133,7 @@ export class BusinessesController {
   }
 
   @Put(":businessSlug/professionals/:professionalId/services")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   replaceProfessionalServices(
     @CurrentTenant() tenant: TenantContext,
     @Param("businessSlug") businessSlug: string,
@@ -146,7 +149,7 @@ export class BusinessesController {
   }
 
   @Put(":businessSlug/professionals/:professionalId/locations")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   replaceProfessionalLocations(
     @CurrentTenant() tenant: TenantContext,
     @Param("businessSlug") businessSlug: string,
@@ -162,7 +165,7 @@ export class BusinessesController {
   }
 
   @Get(":businessSlug/professionals/:professionalId/availability")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   professionalAvailability(
     @CurrentTenant() tenant: TenantContext,
     @Param("professionalId") professionalId: string,
@@ -171,7 +174,7 @@ export class BusinessesController {
   }
 
   @Put(":businessSlug/professionals/:professionalId/availability")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   replaceProfessionalAvailability(
     @CurrentTenant() tenant: TenantContext,
     @Param("businessSlug") businessSlug: string,
@@ -187,7 +190,7 @@ export class BusinessesController {
   }
 
   @Put(":businessSlug/business-hours")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   replaceBusinessHours(
     @CurrentTenant() tenant: TenantContext,
     @Param("businessSlug") businessSlug: string,
@@ -197,13 +200,13 @@ export class BusinessesController {
   }
 
   @Get(":businessSlug/customers")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   customers(@CurrentTenant() tenant: TenantContext) {
     return this.businessCustomers.listCustomers(tenant);
   }
 
   @Get(":businessSlug/appointments")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   appointments(
     @CurrentTenant() tenant: TenantContext,
     @Query("from") from?: string,
@@ -213,7 +216,7 @@ export class BusinessesController {
   }
 
   @Get(":businessSlug/appointments/:appointmentId")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   appointmentDetail(
     @CurrentTenant() tenant: TenantContext,
     @Param("appointmentId") appointmentId: string,
@@ -222,7 +225,7 @@ export class BusinessesController {
   }
 
   @Post(":businessSlug/appointments")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   createAppointment(
     @CurrentTenant() tenant: TenantContext,
     @Body() body: CreateAppointmentRequest,
@@ -231,7 +234,7 @@ export class BusinessesController {
   }
 
   @Patch(":businessSlug/appointments/:appointmentId/status")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   updateAppointmentStatus(
     @CurrentTenant() tenant: TenantContext,
     @Param("appointmentId") appointmentId: string,
@@ -241,7 +244,7 @@ export class BusinessesController {
   }
 
   @Get(":businessSlug/dashboard/calendar")
-  @RequireTenant()
+  @RequireTenant(...ADMIN_ROLES)
   dashboardCalendar(
     @CurrentTenant() tenant: TenantContext,
     @Query("from") from?: string,

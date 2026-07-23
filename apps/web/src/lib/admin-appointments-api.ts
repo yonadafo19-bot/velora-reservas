@@ -1,5 +1,6 @@
 import type {
   AdminAppointmentAvailability,
+  AdminAppointmentAvailabilityLoadState,
   AdminAppointmentCustomerOption,
   AdminAppointmentFormLoadState,
   AdminAppointmentLocationOption,
@@ -9,17 +10,12 @@ import type {
   AdminCreateAppointmentInput,
   AdminCreateAppointmentResult,
 } from "@/types/admin-appointment-form";
-import type { BusinessVertical } from "@/types/demo";
+import { getAuthenticatedAdminApiConfig } from "@/lib/admin-api";
 
 const DEFAULT_TIME_ZONE = "America/Santiago";
 const PAST_DATE_MESSAGE = "No puedes crear una cita en una fecha pasada.";
 const FORM_LOAD_ERROR_MESSAGE = "No pudimos cargar los datos para crear una cita. Intenta nuevamente.";
 const FORM_AUTH_ERROR_MESSAGE = "No pudimos cargar los datos para crear una cita. Revisa la sesión de administrador.";
-const businessSlugByVertical: Record<BusinessVertical, string> = {
-  barberia: "velora-barberia-demo",
-  belleza: "velora-beauty-studio-demo",
-};
-
 interface ProfessionalAvailabilityResponse {
   locations: AdminAppointmentLocationOption[];
   businessHours: AdminAppointmentAvailability["businessHours"];
@@ -44,17 +40,9 @@ class AdminFormLoadError extends Error {
 }
 
 export async function getAdminAppointmentFormData(
-  vertical: BusinessVertical,
+  businessSlug: string,
 ): Promise<AdminAppointmentFormLoadState> {
-  const config = getAdminApiConfig();
-  if (!config.ok) {
-    return {
-      status: "missing-config",
-      message: config.message,
-    };
-  }
-
-  const businessSlug = businessSlugByVertical[vertical];
+  const config = await getAuthenticatedAdminApiConfig(businessSlug);
 
   try {
     const [servicesPayload, customersPayload, professionalsPayload] = await Promise.all([
@@ -78,53 +66,33 @@ export async function getAdminAppointmentFormData(
       "professionals",
     );
     const activeServices = services.filter((service) => service.isActive);
-    const activeProfessionals = professionals.filter((professional) => professional.isActive);
-    const availabilityEntries = await Promise.all(
-      activeProfessionals.map(async (professional) => ({
-        professionalId: professional.id,
-        availability: normalizeProfessionalAvailability(
-          await getAdminApi<unknown>(
-            config,
-            `/businesses/${businessSlug}/professionals/${professional.id}/availability`,
-            "availability",
-          ),
-        ),
-      })),
-    );
-    const locationsById = new Map<string, AdminAppointmentLocationOption>();
-    const locationsByProfessionalId: Record<string, string[]> = {};
-    const availabilityByProfessionalId: Record<string, AdminAppointmentAvailability> = {};
-
-    for (const entry of availabilityEntries) {
-      const activeLocations = entry.availability.locations.filter(
-        (location) => location.status === "ACTIVE",
-      );
-      locationsByProfessionalId[entry.professionalId] = activeLocations.map(
-        (location) => location.id,
-      );
-
-      for (const location of activeLocations) {
-        locationsById.set(location.id, location);
-      }
-
-      availabilityByProfessionalId[entry.professionalId] = {
-        businessHours: entry.availability.businessHours.filter((rule) => rule.status === "ACTIVE"),
-        weeklyRules: entry.availability.weeklyRules.filter((rule) => rule.status === "ACTIVE"),
-        timeOff: entry.availability.timeOff.filter((entry) => entry.status === "ACTIVE"),
-      };
-    }
-
+    const activeProfessionals = professionals
+      .filter((professional) => professional.isActive)
+      .map((professional) => ({
+        ...professional,
+        locations: (professional.locations ?? []).filter((location) => location.status === "ACTIVE"),
+      }));
+    const locations = [...new Map(
+      activeProfessionals
+        .flatMap((professional) => professional.locations)
+        .map((location) => [location.id, location]),
+    ).values()];
     return {
       status: "ready",
       data: {
         businessSlug,
-        vertical,
+        vertical: config.vertical,
         services: activeServices,
         customers,
         professionals: activeProfessionals,
-        locations: [...locationsById.values()],
-        locationsByProfessionalId,
-        availabilityByProfessionalId,
+        locations,
+        locationsByProfessionalId: Object.fromEntries(
+          activeProfessionals.map((professional) => [
+            professional.id,
+            professional.locations.map((location) => location.id),
+          ]),
+        ),
+        availabilityByProfessionalId: {},
       },
     };
   } catch (error) {
@@ -139,17 +107,50 @@ export async function getAdminAppointmentFormData(
   }
 }
 
+export async function getAdminAppointmentProfessionalAvailability(
+  businessSlug: string,
+  professionalId: string,
+): Promise<AdminAppointmentAvailabilityLoadState> {
+  if (!isNonEmptyString(professionalId)) {
+    return { status: "error", message: "Selecciona un profesional para revisar su disponibilidad." };
+  }
+
+  const config = await getAuthenticatedAdminApiConfig(businessSlug);
+
+  try {
+    const payload = await getAdminApi<unknown>(
+      config,
+      `/businesses/${config.businessSlug}/professionals/${encodeURIComponent(professionalId)}/availability`,
+      "availability",
+    );
+    const normalized = normalizeProfessionalAvailability(payload);
+    const locations = normalized.locations.filter((location) => location.status === "ACTIVE");
+
+    return {
+      status: "ready",
+      data: {
+        professionalId,
+        locations,
+        availability: {
+          businessHours: normalized.businessHours.filter((rule) => rule.status === "ACTIVE"),
+          weeklyRules: normalized.weeklyRules.filter((rule) => rule.status === "ACTIVE"),
+          timeOff: normalized.timeOff.filter((entry) => entry.status === "ACTIVE"),
+        },
+      },
+    };
+  } catch (error) {
+    logAdminFormLoadError("availability", error);
+    return {
+      status: "error",
+      message: "No pudimos cargar la disponibilidad. Intenta nuevamente.",
+    };
+  }
+}
+
 export async function createAdminAppointment(
   input: AdminCreateAppointmentInput,
 ): Promise<AdminCreateAppointmentResult> {
-  const config = getAdminApiConfig();
-  if (!config.ok) {
-    return {
-      ok: false,
-      code: "ADMIN_APPOINTMENT_CONFIG_MISSING",
-      message: config.message,
-    };
-  }
+  const config = await getAuthenticatedAdminApiConfig(input.businessSlug);
 
   const validation = validateCreateAppointmentInput(input);
   if (!validation.ok) {
@@ -351,26 +352,6 @@ function logAdminFormLoadError(block: AdminAppointmentFormLoadBlock, error: unkn
 
 function isUnauthorizedFormLoadError(error: unknown) {
   return error instanceof AdminFormLoadError && error.status === 401;
-}
-
-function getAdminApiConfig():
-  | { ok: true; apiUrl: string; token: string }
-  | { ok: false; message: string } {
-  const apiUrl = process.env.VELORA_API_URL?.replace(/\/+$/, "");
-  const token = process.env.VELORA_ADMIN_DEV_TOKEN;
-
-  if (!apiUrl || !token) {
-    return {
-      ok: false,
-      message: FORM_AUTH_ERROR_MESSAGE,
-    };
-  }
-
-  return {
-    ok: true,
-    apiUrl,
-    token,
-  };
 }
 
 function getTimezoneOffsetMilliseconds(date: Date): number {

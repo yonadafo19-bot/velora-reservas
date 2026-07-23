@@ -1,15 +1,10 @@
-import type { BusinessVertical } from "@/types/demo";
 import type { AdminCalendarLoadState, AdminCalendarResponse } from "@/types/admin-calendar";
+import { getAuthenticatedAdminApiConfig } from "@/lib/admin-api";
 
 const DEFAULT_TIME_ZONE = "America/Santiago";
 const DEFAULT_RANGE_DAYS = 7;
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
-const ADMIN_CALENDAR_AUTH_MESSAGE = "Configuración o sesión pendiente. No pudimos cargar la agenda real. Revisa la sesión de administrador.";
-
-const businessSlugByVertical: Record<BusinessVertical, string> = {
-  barberia: "velora-barberia-demo",
-  belleza: "velora-beauty-studio-demo",
-};
+const ADMIN_CALENDAR_AUTH_MESSAGE = "No pudimos cargar la agenda. Revisa tu sesión e intenta nuevamente.";
 
 class AdminCalendarLoadError extends Error {
   constructor(message: string, readonly status?: number) {
@@ -19,26 +14,18 @@ class AdminCalendarLoadError extends Error {
 }
 
 export async function getAdminCalendar(
-  vertical: BusinessVertical,
+  businessSlug: string,
 ): Promise<AdminCalendarLoadState> {
-  const apiUrl = process.env.VELORA_API_URL;
-  const token = process.env.VELORA_ADMIN_DEV_TOKEN;
-
-  if (!apiUrl || !token) {
-    return {
-      status: "missing-config",
-      message: ADMIN_CALENDAR_AUTH_MESSAGE,
-    };
-  }
+  const config = await getAuthenticatedAdminApiConfig(businessSlug);
 
   const { from, to } = getDefaultCalendarRange();
 
   try {
-    const endpoint = buildCalendarUrl(apiUrl, businessSlugByVertical[vertical], from, to);
+    const endpoint = buildCalendarUrl(config.apiUrl, config.businessSlug, from, to);
     const response = await fetch(endpoint, {
       cache: "no-store",
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${config.token}`,
         Accept: "application/json",
       },
     });

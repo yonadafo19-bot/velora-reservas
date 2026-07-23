@@ -24,5 +24,5 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { themeColor: "#f6f2eb", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="es-CL" className={`${outfit.variable} ${cormorant.variable}`}><body>{children}</body></html>;
+  return <html lang="es-CL" data-scroll-behavior="smooth" className={`${outfit.variable} ${cormorant.variable}`}><body>{children}</body></html>;
 }

@@ -25,13 +25,14 @@ export interface AdminAppointmentProfessionalOption {
     id: string;
     name: string;
   }>;
+  locations: AdminAppointmentLocationOption[];
 }
 
 export interface AdminAppointmentLocationOption {
   id: string;
   slug: string;
   name: string;
-  timezone: string;
+  timezone?: string;
   status: string;
 }
 
@@ -91,6 +92,20 @@ export type AdminAppointmentFormLoadState =
       status: "error";
       message: string;
       debugBlock?: AdminAppointmentFormLoadBlock;
+    };
+
+export type AdminAppointmentAvailabilityLoadState =
+  | {
+      status: "ready";
+      data: {
+        professionalId: string;
+        locations: AdminAppointmentLocationOption[];
+        availability: AdminAppointmentAvailability;
+      };
+    }
+  | {
+      status: "error";
+      message: string;
     };
 
 export type AdminAppointmentFormLoadBlock =

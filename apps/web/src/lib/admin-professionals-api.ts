@@ -1,11 +1,6 @@
-import type { BusinessVertical } from "@/types/demo";
+import { getAuthenticatedAdminApiConfig, type AdminApiConfig } from "@/lib/admin-api";
 
-const ADMIN_PROFESSIONALS_AUTH_MESSAGE = "Configuracion o sesion pendiente. No pudimos cargar profesionales reales. Revisa la sesion de administrador.";
-
-const businessSlugByVertical: Record<BusinessVertical, string> = {
-  barberia: "velora-barberia-demo",
-  belleza: "velora-beauty-studio-demo",
-};
+const ADMIN_PROFESSIONALS_AUTH_MESSAGE = "No pudimos cargar el equipo. Revisa tu sesión e intenta nuevamente.";
 
 export type AdminProfessionalStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
 
@@ -98,11 +93,6 @@ export type AdminProfessionalMutationResult =
       requestId?: string;
     };
 
-interface AdminApiConfig {
-  apiUrl: string;
-  token: string;
-}
-
 class AdminProfessionalsLoadError extends Error {
   constructor(message: string, readonly status?: number) {
     super(message);
@@ -111,17 +101,9 @@ class AdminProfessionalsLoadError extends Error {
 }
 
 export async function getAdminProfessionalsData(
-  vertical: BusinessVertical,
+  businessSlug: string,
 ): Promise<AdminProfessionalsLoadState> {
-  const config = getAdminApiConfig();
-  if (!config.ok) {
-    return {
-      status: "MISSING_CONFIG",
-      message: config.message,
-    };
-  }
-
-  const businessSlug = businessSlugByVertical[vertical];
+  const config = await getAuthenticatedAdminApiConfig(businessSlug);
 
   try {
     const [professionalsPayload, servicesPayload, locationsPayload] = await Promise.all([
@@ -149,7 +131,7 @@ export async function getAdminProfessionalsData(
 
     return {
       status: "API_ERROR",
-      message: "No pudimos cargar profesionales reales. Intenta nuevamente.",
+      message: "No pudimos cargar el equipo. Intenta nuevamente.",
       httpStatus: error instanceof AdminProfessionalsLoadError ? error.status : undefined,
     };
   }
@@ -158,14 +140,7 @@ export async function getAdminProfessionalsData(
 export async function createAdminProfessional(
   input: AdminProfessionalMutationInput,
 ): Promise<AdminProfessionalMutationResult> {
-  const config = getAdminApiConfig();
-  if (!config.ok) {
-    return {
-      ok: false,
-      code: "ADMIN_PROFESSIONALS_CONFIG_MISSING",
-      message: config.message,
-    };
-  }
+  const config = await getAuthenticatedAdminApiConfig(input.businessSlug);
 
   return mutateAdminProfessional(
     config,
@@ -178,14 +153,7 @@ export async function createAdminProfessional(
 export async function updateAdminProfessional(
   input: AdminProfessionalMutationInput & { professionalId: string },
 ): Promise<AdminProfessionalMutationResult> {
-  const config = getAdminApiConfig();
-  if (!config.ok) {
-    return {
-      ok: false,
-      code: "ADMIN_PROFESSIONALS_CONFIG_MISSING",
-      message: config.message,
-    };
-  }
+  const config = await getAuthenticatedAdminApiConfig(input.businessSlug);
 
   return mutateAdminProfessional(
     config,
@@ -198,14 +166,7 @@ export async function updateAdminProfessional(
 export async function updateAdminProfessionalServices(
   input: AdminProfessionalServicesInput,
 ): Promise<AdminProfessionalMutationResult> {
-  const config = getAdminApiConfig();
-  if (!config.ok) {
-    return {
-      ok: false,
-      code: "ADMIN_PROFESSIONALS_CONFIG_MISSING",
-      message: config.message,
-    };
-  }
+  const config = await getAuthenticatedAdminApiConfig(input.businessSlug);
 
   return mutateAdminProfessional(
     config,
@@ -218,14 +179,7 @@ export async function updateAdminProfessionalServices(
 export async function updateAdminProfessionalLocations(
   input: AdminProfessionalLocationsInput,
 ): Promise<AdminProfessionalMutationResult> {
-  const config = getAdminApiConfig();
-  if (!config.ok) {
-    return {
-      ok: false,
-      code: "ADMIN_PROFESSIONALS_CONFIG_MISSING",
-      message: config.message,
-    };
-  }
+  const config = await getAuthenticatedAdminApiConfig(input.businessSlug);
 
   return mutateAdminProfessional(
     config,
@@ -483,26 +437,6 @@ function requireLocation(payload: unknown): AdminProfessionalLocationOption {
   };
 }
 
-function getAdminApiConfig():
-  | { ok: true; apiUrl: string; token: string }
-  | { ok: false; message: string } {
-  const apiUrl = process.env.VELORA_API_URL?.replace(/\/+$/, "");
-  const token = process.env.VELORA_ADMIN_DEV_TOKEN;
-
-  if (!apiUrl || !token) {
-    return {
-      ok: false,
-      message: ADMIN_PROFESSIONALS_AUTH_MESSAGE,
-    };
-  }
-
-  return {
-    ok: true,
-    apiUrl,
-    token,
-  };
-}
-
 function mapAdminProfessionalError(code: string): string {
   const messages: Record<string, string> = {
     ADMIN_PROFESSIONAL_INVALID_INPUT: "Revisa los datos del profesional.",
@@ -517,11 +451,11 @@ function mapAdminProfessionalError(code: string): string {
     ADMIN_PROFESSIONAL_ASSIGNMENT_CONFLICT: "La asignacion del profesional ya existe. Intenta guardar nuevamente.",
     ADMIN_PROFESSIONAL_CONFLICT: "Los datos del profesional entran en conflicto con registros existentes.",
     ADMIN_PROFESSIONAL_RELATION_INVALID: "Servicio, sucursal o profesional no disponible para este negocio.",
-    ADMIN_PROFESSIONAL_HTTP_ERROR: "No pudimos guardar el profesional. El API devolvio una respuesta inesperada.",
-    ADMIN_PROFESSIONAL_NETWORK_ERROR: "No pudimos conectar con el API para guardar el profesional.",
-    ADMIN_PROFESSIONAL_RESPONSE_INVALID: "El API guardo o respondio con un formato inesperado. Revisa la consola del servidor.",
+    ADMIN_PROFESSIONAL_HTTP_ERROR: "No pudimos guardar el profesional. Intenta nuevamente.",
+    ADMIN_PROFESSIONAL_NETWORK_ERROR: "No pudimos guardar el profesional. Revisa tu conexión e intenta nuevamente.",
+    ADMIN_PROFESSIONAL_RESPONSE_INVALID: "No pudimos confirmar el guardado. Intenta nuevamente.",
     TENANT_BUSINESS_MISMATCH: "No tienes acceso a este negocio.",
-    INTERNAL_SERVER_ERROR: "El API no pudo completar el guardado. Revisa el requestId en la consola del servidor.",
+    INTERNAL_SERVER_ERROR: "No pudimos completar el guardado. Intenta nuevamente.",
   };
 
   return messages[code] ?? "No pudimos guardar el profesional. Intenta nuevamente.";

@@ -1,11 +1,6 @@
-import type { BusinessVertical } from "@/types/demo";
+import { getAuthenticatedAdminApiConfig, type AdminApiConfig } from "@/lib/admin-api";
 
-const ADMIN_SERVICES_AUTH_MESSAGE = "Configuracion o sesion pendiente. No pudimos cargar servicios reales. Revisa la sesion de administrador.";
-
-const businessSlugByVertical: Record<BusinessVertical, string> = {
-  barberia: "velora-barberia-demo",
-  belleza: "velora-beauty-studio-demo",
-};
+const ADMIN_SERVICES_AUTH_MESSAGE = "No pudimos cargar los servicios. Revisa tu sesión e intenta nuevamente.";
 
 export type AdminServiceStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
 
@@ -67,11 +62,6 @@ export type AdminServiceMutationResult =
       message: string;
     };
 
-interface AdminApiConfig {
-  apiUrl: string;
-  token: string;
-}
-
 interface ApiErrorResponse {
   code?: string;
   message?: string;
@@ -85,17 +75,9 @@ class AdminServicesLoadError extends Error {
 }
 
 export async function getAdminServicesData(
-  vertical: BusinessVertical,
+  businessSlug: string,
 ): Promise<AdminServicesLoadState> {
-  const config = getAdminApiConfig();
-  if (!config.ok) {
-    return {
-      status: "MISSING_CONFIG",
-      message: config.message,
-    };
-  }
-
-  const businessSlug = businessSlugByVertical[vertical];
+  const config = await getAuthenticatedAdminApiConfig(businessSlug);
 
   try {
     const payload = await getAdminApi<unknown>(
@@ -120,7 +102,7 @@ export async function getAdminServicesData(
 
     return {
       status: "API_ERROR",
-      message: "No pudimos cargar servicios reales. Intenta nuevamente.",
+      message: "No pudimos cargar los servicios. Intenta nuevamente.",
       httpStatus: error instanceof AdminServicesLoadError ? error.status : undefined,
     };
   }
@@ -129,14 +111,7 @@ export async function getAdminServicesData(
 export async function createAdminService(
   input: AdminServiceMutationInput,
 ): Promise<AdminServiceMutationResult> {
-  const config = getAdminApiConfig();
-  if (!config.ok) {
-    return {
-      ok: false,
-      code: "ADMIN_SERVICES_CONFIG_MISSING",
-      message: config.message,
-    };
-  }
+  const config = await getAuthenticatedAdminApiConfig(input.businessSlug);
 
   return mutateAdminService(
     config,
@@ -149,14 +124,7 @@ export async function createAdminService(
 export async function updateAdminService(
   input: AdminServiceMutationInput & { serviceId: string },
 ): Promise<AdminServiceMutationResult> {
-  const config = getAdminApiConfig();
-  if (!config.ok) {
-    return {
-      ok: false,
-      code: "ADMIN_SERVICES_CONFIG_MISSING",
-      message: config.message,
-    };
-  }
+  const config = await getAuthenticatedAdminApiConfig(input.businessSlug);
 
   return mutateAdminService(
     config,
@@ -304,26 +272,6 @@ function requireService(payload: unknown): AdminService {
 
 function getIntegerOrDefault(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isInteger(value) ? value : fallback;
-}
-
-function getAdminApiConfig():
-  | { ok: true; apiUrl: string; token: string }
-  | { ok: false; message: string } {
-  const apiUrl = process.env.VELORA_API_URL?.replace(/\/+$/, "");
-  const token = process.env.VELORA_ADMIN_DEV_TOKEN;
-
-  if (!apiUrl || !token) {
-    return {
-      ok: false,
-      message: ADMIN_SERVICES_AUTH_MESSAGE,
-    };
-  }
-
-  return {
-    ok: true,
-    apiUrl,
-    token,
-  };
 }
 
 function mapAdminServiceError(code: string): string {

@@ -8,6 +8,25 @@ const {
   AppointmentSchedulingService,
 } = require("../dist/businesses/appointment-scheduling.service.js");
 
+const FUTURE_START_AT = futureWednesdayAtUtcHour(14);
+const FUTURE_FIRST_SEGMENT_END_AT = addMinutes(FUTURE_START_AT, 40);
+const FUTURE_END_AT = addMinutes(FUTURE_START_AT, 60);
+
+function futureWednesdayAtUtcHour(hour) {
+  const candidate = new Date(Date.now() + (7 * 24 * 60 * 60 * 1000));
+  candidate.setUTCHours(hour, 0, 0, 0);
+
+  while (candidate.getUTCDay() !== 3) {
+    candidate.setUTCDate(candidate.getUTCDate() + 1);
+  }
+
+  return candidate.toISOString();
+}
+
+function addMinutes(isoDate, minutes) {
+  return new Date(new Date(isoDate).getTime() + (minutes * 60 * 1000)).toISOString();
+}
+
 function tenantContext() {
   return {
     businessId: "business-tenant-1",
@@ -27,7 +46,7 @@ function validBody(overrides = {}) {
   return {
     locationId: "location-1",
     customerId: "customer-1",
-    startAt: "2026-07-01T14:00:00.000Z",
+    startAt: FUTURE_START_AT,
     serviceIds: ["service-2", "service-1"],
     professionalId: "professional-1",
     ...overrides,
@@ -81,8 +100,8 @@ function safeDetailResponse(overrides = {}) {
     id: "appointment-1",
     status: "CONFIRMED",
     source: "ADMIN",
-    startAt: "2026-07-01T14:00:00.000Z",
-    endAt: "2026-07-01T15:00:00.000Z",
+    startAt: FUTURE_START_AT,
+    endAt: FUTURE_END_AT,
     totalPriceClp: 27000,
     totalDurationMinutes: 60,
     currency: "CLP",
@@ -465,7 +484,7 @@ test("business appointment create rechaza horario pasado en America/Santiago", a
 
   await rejectsWithCode(
     () => service.createAppointment(tenantContext(), validBody({
-      startAt: "2026-06-27T10:00:00.000Z",
+      startAt: new Date(Date.now() - (24 * 60 * 60 * 1000)).toISOString(),
     })),
     400,
     "APPOINTMENT_SLOT_IN_PAST",
@@ -571,8 +590,8 @@ test("business appointment create consulta solape cliente con estados activos y 
   assert.deepEqual(calls.customerOverlap.where.status, {
     in: ["PENDING", "CONFIRMED", "IN_PROGRESS"],
   });
-  assert.equal(calls.customerOverlap.where.startAt.lt.getTime(), new Date("2026-07-01T15:00:00.000Z").getTime());
-  assert.equal(calls.customerOverlap.where.endAt.gt.getTime(), new Date("2026-07-01T14:00:00.000Z").getTime());
+  assert.equal(calls.customerOverlap.where.startAt.lt.getTime(), new Date(FUTURE_END_AT).getTime());
+  assert.equal(calls.customerOverlap.where.endAt.gt.getTime(), new Date(FUTURE_START_AT).getTime());
 });
 
 test("business appointment create no consulta estados cerrados como bloqueantes de cliente", async () => {
@@ -613,8 +632,8 @@ test("business appointment create calcula duracion, precio, endAt, snapshots y p
     customerId: "customer-1",
     status: "CONFIRMED",
     source: "WHATSAPP",
-    startAt: new Date("2026-07-01T14:00:00.000Z"),
-    endAt: new Date("2026-07-01T15:00:00.000Z"),
+    startAt: new Date(FUTURE_START_AT),
+    endAt: new Date(FUTURE_END_AT),
     totalPriceClp: 27000,
     totalDurationMinutes: 60,
     currencySnapshot: "CLP",
@@ -672,8 +691,8 @@ test("business appointment create crea AppointmentSegment secuenciales si viene 
       professionalId: "professional-1",
       locationId: "location-1",
       sequence: 1,
-      startsAt: new Date("2026-07-01T14:00:00.000Z"),
-      endsAt: new Date("2026-07-01T14:40:00.000Z"),
+      startsAt: new Date(FUTURE_START_AT),
+      endsAt: new Date(FUTURE_FIRST_SEGMENT_END_AT),
       blocksAvailability: true,
       status: "SCHEDULED",
     },
@@ -684,8 +703,8 @@ test("business appointment create crea AppointmentSegment secuenciales si viene 
       professionalId: "professional-1",
       locationId: "location-1",
       sequence: 2,
-      startsAt: new Date("2026-07-01T14:40:00.000Z"),
-      endsAt: new Date("2026-07-01T15:00:00.000Z"),
+      startsAt: new Date(FUTURE_FIRST_SEGMENT_END_AT),
+      endsAt: new Date(FUTURE_END_AT),
       blocksAvailability: true,
       status: "SCHEDULED",
     },

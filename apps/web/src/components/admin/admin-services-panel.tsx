@@ -46,7 +46,7 @@ const statusLabel: Record<AdminServiceStatus, string> = {
 export function AdminServicesPanel({ state }: { state: AdminServicesLoadState }) {
   if (state.status === "MISSING_CONFIG") {
     return <ServicesStateNotice
-      title="Servicios reales no disponibles"
+      title="Servicios no disponibles"
       message={state.message}
       mode="warning"
     />;
@@ -122,19 +122,19 @@ function ConnectedServicesPanel({
 
   return <div style={{ display: "grid", gap: 18 }}>
     <div className="metric-grid">
-      <article><small>Total servicios</small><strong>{services.length}</strong><em>Catalogo conectado al API</em></article>
+      <article><small>Total servicios</small><strong>{services.length}</strong><em>Catálogo del negocio</em></article>
       <article><small>Activos</small><strong>{activeCount}</strong><em>Disponibles para agenda</em></article>
       <article><small>Inactivos / archivados</small><strong>{services.length - activeCount}</strong><em>No aparecen como activos</em></article>
-      <article><small>Estado</small><strong>Real</strong><em>Persistencia habilitada</em></article>
+      <article><small>Estado</small><strong>Activo</strong><em>Gestión disponible</em></article>
     </div>
 
     <section className="admin-panel">
       <div className="panel-heading">
         <div>
           <h2>{isEditing ? "Editar servicio" : "Nuevo servicio"}</h2>
-          <p>Los cambios se guardan en el API real de Velora.</p>
+          <p>Los cambios se reflejan en el catálogo del negocio.</p>
         </div>
-        <span className="status status--confirmed">REAL_CONNECTED</span>
+        <span className="status status--confirmed">Disponible</span>
       </div>
 
       <ServiceForm
@@ -159,7 +159,7 @@ function ConnectedServicesPanel({
     <section className="admin-panel">
       <div className="panel-heading">
         <div>
-          <h2>Servicios reales</h2>
+          <h2>Servicios</h2>
           <p>{services.length === 0 ? "Aun no hay servicios creados." : "Selecciona un servicio para editarlo."}</p>
         </div>
       </div>
@@ -292,10 +292,10 @@ function ServicesStateNotice({
         <h2>{title}</h2>
         <p>{message}</p>
       </div>
-      <span className={`status ${mode === "warning" ? "status--pending" : "status--cancelled"}`}>{mode === "warning" ? "MISSING_CONFIG" : "API_ERROR"}</span>
+      <span className={`status ${mode === "warning" ? "status--pending" : "status--cancelled"}`}>{mode === "warning" ? "Revisión necesaria" : "No disponible"}</span>
     </div>
     <div className="admin-message admin-message--warning">
-      <span><strong>No se muestran datos demo</strong>Configura el API para operar con servicios reales persistentes.</span>
+      <span><strong>Revisa la configuración</strong>Completa la conexión del negocio para administrar sus servicios.</span>
     </div>
   </section>;
 }

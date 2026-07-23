@@ -7,6 +7,7 @@ import {
   createAdminProfessionalAction,
   updateAdminProfessionalAction,
 } from "@/app/admin/profesionales/actions";
+import { operationalDisplayName } from "@/lib/admin-display";
 import type {
   AdminProfessional,
   AdminProfessionalAssignableService,
@@ -49,7 +50,7 @@ const statusLabel: Record<AdminProfessionalStatus, string> = {
 export function AdminProfessionalsPanel({ state }: { state: AdminProfessionalsLoadState }) {
   if (state.status === "MISSING_CONFIG") {
     return <ProfessionalsStateNotice
-      title="Profesionales reales no disponibles"
+      title="Equipo no disponible"
       message={state.message}
       mode="warning"
     />;
@@ -135,7 +136,7 @@ function ConnectedProfessionalsPanel({
 
   return <div style={{ display: "grid", gap: 18 }}>
     <div className="metric-grid">
-      <article><small>Total profesionales</small><strong>{professionals.length}</strong><em>Equipo conectado al API</em></article>
+      <article><small>Total profesionales</small><strong>{professionals.length}</strong><em>Equipo del negocio</em></article>
       <article><small>Activos</small><strong>{activeCount}</strong><em>Disponibles para agenda</em></article>
       <article><small>Inactivos / archivados</small><strong>{professionals.length - activeCount}</strong><em>No aparecen como activos</em></article>
       <article><small>Servicios activos</small><strong>{services.length}</strong><em>Asignables al equipo</em></article>
@@ -146,9 +147,9 @@ function ConnectedProfessionalsPanel({
       <div className="panel-heading">
         <div>
           <h2>{isEditing ? "Editar profesional" : "Nuevo profesional"}</h2>
-          <p>Los cambios se guardan en el API real de Velora.</p>
+          <p>Los cambios se reflejan en la agenda del negocio.</p>
         </div>
-        <span className="status status--confirmed">REAL_CONNECTED</span>
+        <span className="status status--confirmed">Disponible</span>
       </div>
 
       <ProfessionalForm
@@ -175,7 +176,7 @@ function ConnectedProfessionalsPanel({
     <section className="admin-panel">
       <div className="panel-heading">
         <div>
-          <h2>Profesionales reales</h2>
+          <h2>Equipo</h2>
           <p>{professionals.length === 0 ? "Aun no hay profesionales creados." : "Selecciona un profesional para editarlo."}</p>
         </div>
       </div>
@@ -263,7 +264,7 @@ function ProfessionalForm({
     </div>
     <div className="admin-form-section">
       <div className="admin-form-section__header">
-        <span><strong>Sucursales asignadas</strong><small>Selecciona donde puede atender dentro de la agenda real.</small></span>
+        <span><strong>Sucursales asignadas</strong><small>Selecciona dónde puede atender dentro de la agenda.</small></span>
       </div>
       {locations.length === 0
         ? <div className="admin-message admin-message--warning"><span><strong>Sin sucursales activas</strong>Activa al menos una sucursal antes de asignarla al equipo.</span></div>
@@ -345,10 +346,10 @@ function ProfessionalsStateNotice({
         <h2>{title}</h2>
         <p>{message}</p>
       </div>
-      <span className={`status ${mode === "warning" ? "status--pending" : "status--cancelled"}`}>{mode === "warning" ? "MISSING_CONFIG" : "API_ERROR"}</span>
+      <span className={`status ${mode === "warning" ? "status--pending" : "status--cancelled"}`}>{mode === "warning" ? "Revisión necesaria" : "No disponible"}</span>
     </div>
     <div className="admin-message admin-message--warning">
-      <span><strong>No se muestran datos demo</strong>Configura el API para operar con profesionales reales persistentes.</span>
+      <span><strong>Revisa la configuración</strong>Completa la conexión del negocio para administrar su equipo.</span>
     </div>
   </section>;
 }
@@ -390,5 +391,5 @@ function initials(name: string) {
 }
 
 function formatLocationLabel(location: AdminProfessionalLocationOption) {
-  return [location.name, location.city].filter(Boolean).join(" - ");
+  return operationalDisplayName([location.name, location.city].filter(Boolean).join(" - "));
 }

@@ -13,12 +13,14 @@ import {
   type AdminProfessionalServicesInput,
   type AdminProfessionalStatus,
 } from "@/lib/admin-professionals-api";
+import { requireAdminBusiness } from "@/lib/admin-auth";
 
 const ALLOWED_STATUSES = new Set(["ACTIVE", "INACTIVE", "ARCHIVED"]);
 
 export async function createAdminProfessionalAction(
   input: AdminProfessionalMutationInput,
 ): Promise<AdminProfessionalMutationResult> {
+  await requireAdminBusiness(input.businessSlug);
   const validation = validateProfessionalInput(input);
   if (!validation.ok) {
     return validation;
@@ -33,6 +35,7 @@ export async function createAdminProfessionalAction(
 export async function updateAdminProfessionalAction(
   input: AdminProfessionalMutationInput & { professionalId?: string },
 ): Promise<AdminProfessionalMutationResult> {
+  await requireAdminBusiness(input.businessSlug);
   if (!isNonEmptyString(input.professionalId)) {
     return invalidInput("Selecciona un profesional valido para editar.");
   }
@@ -54,6 +57,7 @@ export async function updateAdminProfessionalAction(
 export async function updateAdminProfessionalServicesAction(
   input: AdminProfessionalServicesInput,
 ): Promise<AdminProfessionalMutationResult> {
+  await requireAdminBusiness(input.businessSlug);
   const validation = validateProfessionalServicesInput(input);
   if (!validation.ok) {
     return validation;
@@ -68,6 +72,7 @@ export async function updateAdminProfessionalServicesAction(
 export async function updateAdminProfessionalLocationsAction(
   input: AdminProfessionalLocationsInput,
 ): Promise<AdminProfessionalMutationResult> {
+  await requireAdminBusiness(input.businessSlug);
   const validation = validateProfessionalLocationsInput(input);
   if (!validation.ok) {
     return validation;
