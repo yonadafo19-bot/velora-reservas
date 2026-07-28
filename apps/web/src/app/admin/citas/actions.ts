@@ -7,6 +7,7 @@ import {
   getAdminAppointmentFormData,
   getAdminAppointmentProfessionalAvailability,
 } from "@/lib/admin-appointments-api";
+import { updateAdminAppointmentStatus } from "@/lib/admin-calendar-api";
 import { requireAdminBusiness } from "@/lib/admin-auth";
 import type {
   AdminAppointmentAvailabilityLoadState,
@@ -14,6 +15,10 @@ import type {
   AdminCreateAppointmentInput,
   AdminCreateAppointmentResult,
 } from "@/types/admin-appointment-form";
+import type {
+  AdminAppointmentStatusResult,
+  AdminAppointmentTargetStatus,
+} from "@/types/admin-calendar";
 
 export async function loadAdminAppointmentFormAction(
   businessSlug: string,
@@ -25,9 +30,11 @@ export async function loadAdminAppointmentFormAction(
 export async function loadAdminAppointmentAvailabilityAction(input: {
   businessSlug: string;
   professionalId: string;
+  locationId: string;
+  date: string;
 }): Promise<AdminAppointmentAvailabilityLoadState> {
   await requireAdminBusiness(input.businessSlug);
-  return getAdminAppointmentProfessionalAvailability(input.businessSlug, input.professionalId);
+  return getAdminAppointmentProfessionalAvailability(input);
 }
 
 export async function createAdminAppointmentAction(
@@ -38,6 +45,23 @@ export async function createAdminAppointmentAction(
 
   if (result.ok) {
     revalidatePath("/admin/citas");
+    revalidatePath("/admin");
+  }
+
+  return result;
+}
+
+export async function updateAdminAppointmentStatusAction(input: {
+  businessSlug: string;
+  appointmentId: string;
+  status: AdminAppointmentTargetStatus;
+}): Promise<AdminAppointmentStatusResult> {
+  await requireAdminBusiness(input.businessSlug);
+  const result = await updateAdminAppointmentStatus(input);
+
+  if (result.ok) {
+    revalidatePath("/admin/citas");
+    revalidatePath("/admin");
   }
 
   return result;

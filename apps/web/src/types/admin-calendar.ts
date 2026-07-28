@@ -1,4 +1,5 @@
 export type AdminCalendarStatus = "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
+export type AdminAppointmentTargetStatus = "COMPLETED" | "CANCELLED" | "NO_SHOW";
 
 export interface AdminCalendarResponse {
   range: {
@@ -75,4 +76,15 @@ export type AdminCalendarLoadState =
       message: string;
       httpStatus?: number;
       debugBlock?: "calendar";
+    };
+
+export type AdminAppointmentStatusResult =
+  | {
+      ok: true;
+      appointment: AdminCalendarAppointment;
+    }
+  | {
+      ok: false;
+      code: string;
+      message: string;
     };

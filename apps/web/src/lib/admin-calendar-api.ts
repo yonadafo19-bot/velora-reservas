@@ -1,4 +1,11 @@
-import type { AdminCalendarLoadState, AdminCalendarResponse } from "@/types/admin-calendar";
+import type {
+  AdminAppointmentStatusResult,
+  AdminAppointmentTargetStatus,
+  AdminCalendarAppointment,
+  AdminCalendarLoadState,
+  AdminCalendarResponse,
+  AdminCalendarStatus,
+} from "@/types/admin-calendar";
 import { getAuthenticatedAdminApiConfig } from "@/lib/admin-api";
 
 const DEFAULT_TIME_ZONE = "America/Santiago";
@@ -13,15 +20,32 @@ class AdminCalendarLoadError extends Error {
   }
 }
 
+export interface AdminCalendarQuery {
+  from?: Date;
+  to?: Date;
+  locationId?: string;
+  professionalId?: string;
+  status?: AdminCalendarStatus;
+}
+
 export async function getAdminCalendar(
   businessSlug: string,
+  query: AdminCalendarQuery = {},
 ): Promise<AdminCalendarLoadState> {
   const config = await getAuthenticatedAdminApiConfig(businessSlug);
 
-  const { from, to } = getDefaultCalendarRange();
+  const range = query.from && query.to
+    ? { from: query.from, to: query.to }
+    : getDefaultCalendarRange();
 
   try {
-    const endpoint = buildCalendarUrl(config.apiUrl, config.businessSlug, from, to);
+    const endpoint = buildCalendarUrl(
+      config.apiUrl,
+      config.businessSlug,
+      range.from,
+      range.to,
+      query,
+    );
     const response = await fetch(endpoint, {
       cache: "no-store",
       headers: {
@@ -73,18 +97,127 @@ export async function getAdminCalendar(
   }
 }
 
+export async function updateAdminAppointmentStatus(input: {
+  businessSlug: string;
+  appointmentId: string;
+  status: AdminAppointmentTargetStatus;
+}): Promise<AdminAppointmentStatusResult> {
+  const config = await getAuthenticatedAdminApiConfig(input.businessSlug);
+
+  try {
+    const response = await fetch(
+      `${config.apiUrl}/businesses/${config.businessSlug}/appointments/${encodeURIComponent(input.appointmentId)}/status`,
+      {
+        method: "PATCH",
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${config.token}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          status: input.status,
+          ...(input.status === "CANCELLED" ? { cancellationSource: "ADMIN" } : {}),
+        }),
+      },
+    );
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const code = typeof (payload as { code?: unknown }).code === "string"
+        ? (payload as { code: string }).code
+        : "APPOINTMENT_STATUS_UPDATE_FAILED";
+      return {
+        ok: false,
+        code,
+        message: mapStatusError(code),
+      };
+    }
+
+    return {
+      ok: true,
+      appointment: requireCalendarAppointment(payload),
+    };
+  } catch (error) {
+    logAdminCalendarLoadError(error);
+    return {
+      ok: false,
+      code: "APPOINTMENT_STATUS_UPDATE_FAILED",
+      message: "No pudimos actualizar la cita. Intenta nuevamente.",
+    };
+  }
+}
+
 function buildCalendarUrl(
   apiUrl: string,
   businessSlug: string,
   from: Date,
   to: Date,
+  query: AdminCalendarQuery,
 ): string {
   const normalizedApiUrl = apiUrl.replace(/\/+$/, "");
   const url = new URL(`${normalizedApiUrl}/businesses/${businessSlug}/dashboard/calendar`);
   url.searchParams.set("from", from.toISOString());
   url.searchParams.set("to", to.toISOString());
+  if (query.locationId) {
+    url.searchParams.set("locationId", query.locationId);
+  }
+  if (query.professionalId) {
+    url.searchParams.set("professionalId", query.professionalId);
+  }
+  if (query.status) {
+    url.searchParams.set("status", query.status);
+  }
 
   return url.toString();
+}
+
+function requireCalendarAppointment(payload: unknown): AdminCalendarAppointment {
+  if (!payload || typeof payload !== "object") {
+    throw new AdminCalendarLoadError("Admin appointment payload is invalid.");
+  }
+
+  const value = payload as Partial<AdminCalendarAppointment>;
+  if (typeof value.id !== "string"
+    || !isCalendarStatus(value.status)
+    || typeof value.startAt !== "string"
+    || typeof value.endAt !== "string"
+    || !value.customer
+    || !value.location
+    || !Array.isArray(value.services)
+    || !Array.isArray(value.professionals)
+    || !Array.isArray(value.segments)) {
+    throw new AdminCalendarLoadError("Admin appointment payload has invalid shape.");
+  }
+
+  return {
+    ...value,
+    localDate: typeof value.localDate === "string"
+      ? value.localDate
+      : new Intl.DateTimeFormat("en-CA", {
+          timeZone: DEFAULT_TIME_ZONE,
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date(value.startAt)),
+  } as AdminCalendarAppointment;
+}
+
+function isCalendarStatus(value: unknown): value is AdminCalendarStatus {
+  return value === "CONFIRMED"
+    || value === "COMPLETED"
+    || value === "CANCELLED"
+    || value === "NO_SHOW";
+}
+
+function mapStatusError(code: string): string {
+  const messages: Record<string, string> = {
+    APPOINTMENT_NOT_FOUND: "La cita ya no está disponible.",
+    APPOINTMENT_STATUS_INVALID_INPUT: "No pudimos aplicar ese cambio de estado.",
+    APPOINTMENT_STATUS_TRANSITION_INVALID: "El estado de la cita cambió. Actualiza la agenda e intenta nuevamente.",
+  };
+
+  return messages[code] ?? "No pudimos actualizar la cita. Intenta nuevamente.";
 }
 
 function getDefaultCalendarRange(): { from: Date; to: Date } {

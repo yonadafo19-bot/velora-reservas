@@ -1,6 +1,7 @@
 import type {
   AdminAppointmentAvailability,
   AdminAppointmentAvailabilityLoadState,
+  AdminAppointmentCustomersLoadState,
   AdminAppointmentCustomerOption,
   AdminAppointmentFormLoadState,
   AdminAppointmentLocationOption,
@@ -21,6 +22,14 @@ interface ProfessionalAvailabilityResponse {
   businessHours: AdminAppointmentAvailability["businessHours"];
   weeklyRules: AdminAppointmentAvailability["weeklyRules"];
   timeOff: AdminAppointmentAvailability["timeOff"];
+}
+
+interface AppointmentCalendarResponse {
+  appointments?: Array<{
+    status?: string;
+    startAt?: string;
+    endAt?: string;
+  }>;
 }
 
 interface ApiErrorResponse {
@@ -108,33 +117,57 @@ export async function getAdminAppointmentFormData(
 }
 
 export async function getAdminAppointmentProfessionalAvailability(
-  businessSlug: string,
-  professionalId: string,
+  input: {
+    businessSlug: string;
+    professionalId: string;
+    locationId: string;
+    date: string;
+    includeBookedIntervals?: boolean;
+  },
 ): Promise<AdminAppointmentAvailabilityLoadState> {
-  if (!isNonEmptyString(professionalId)) {
-    return { status: "error", message: "Selecciona un profesional para revisar su disponibilidad." };
+  if (!isNonEmptyString(input.professionalId)
+    || !isNonEmptyString(input.locationId)
+    || !/^\d{4}-\d{2}-\d{2}$/.test(input.date)) {
+    return { status: "error", message: "Completa profesional, ubicación y fecha para revisar horarios." };
   }
 
-  const config = await getAuthenticatedAdminApiConfig(businessSlug);
+  const config = await getAuthenticatedAdminApiConfig(input.businessSlug);
 
   try {
-    const payload = await getAdminApi<unknown>(
-      config,
-      `/businesses/${config.businessSlug}/professionals/${encodeURIComponent(professionalId)}/availability`,
-      "availability",
+    const calendarUrl = new URL(
+      `${config.apiUrl}/businesses/${config.businessSlug}/dashboard/calendar`,
     );
-    const normalized = normalizeProfessionalAvailability(payload);
+    calendarUrl.searchParams.set("from", toSantiagoUtcIso(input.date, "00:00"));
+    calendarUrl.searchParams.set("to", toSantiagoUtcIso(addCalendarDays(input.date, 1), "00:00"));
+    calendarUrl.searchParams.set("professionalId", input.professionalId);
+    calendarUrl.searchParams.set("locationId", input.locationId);
+    const [availabilityPayload, calendarPayload] = await Promise.all([
+      getAdminApi<unknown>(
+        config,
+        `/businesses/${config.businessSlug}/professionals/${encodeURIComponent(input.professionalId)}/availability`,
+        "availability",
+      ),
+      input.includeBookedIntervals === false
+        ? Promise.resolve({ appointments: [] } satisfies AppointmentCalendarResponse)
+        : getAdminApi<AppointmentCalendarResponse>(
+            config,
+            calendarUrl.toString().slice(config.apiUrl.length),
+            "availability",
+          ),
+    ]);
+    const normalized = normalizeProfessionalAvailability(availabilityPayload);
     const locations = normalized.locations.filter((location) => location.status === "ACTIVE");
 
     return {
       status: "ready",
       data: {
-        professionalId,
+        professionalId: input.professionalId,
         locations,
         availability: {
           businessHours: normalized.businessHours.filter((rule) => rule.status === "ACTIVE"),
           weeklyRules: normalized.weeklyRules.filter((rule) => rule.status === "ACTIVE"),
           timeOff: normalized.timeOff.filter((entry) => entry.status === "ACTIVE"),
+          bookedIntervals: normalizeBookedIntervals(calendarPayload),
         },
       },
     };
@@ -172,7 +205,7 @@ export async function createAdminAppointment(
           locationId: input.locationId,
           customerId: input.customerId,
           startAt: toSantiagoUtcIso(input.date, input.time),
-          serviceIds: [input.serviceId],
+          serviceIds: input.serviceIds,
           professionalId: input.professionalId,
           source: "ADMIN",
         }),
@@ -237,7 +270,10 @@ function validateCreateAppointmentInput(
 ): AdminCreateAppointmentResult | { ok: true } {
   if (!isNonEmptyString(input.businessSlug)
     || !isNonEmptyString(input.customerId)
-    || !isNonEmptyString(input.serviceId)
+    || !Array.isArray(input.serviceIds)
+    || input.serviceIds.length === 0
+    || input.serviceIds.some((serviceId) => !isNonEmptyString(serviceId))
+    || new Set(input.serviceIds).size !== input.serviceIds.length
     || !isNonEmptyString(input.professionalId)
     || !isNonEmptyString(input.locationId)
     || !isNonEmptyString(input.date)
@@ -325,6 +361,59 @@ function normalizeProfessionalAvailability(payload: unknown): ProfessionalAvaila
   };
 }
 
+export async function getAdminAppointmentCustomers(
+  businessSlug: string,
+): Promise<AdminAppointmentCustomersLoadState> {
+  const config = await getAuthenticatedAdminApiConfig(businessSlug);
+  try {
+    const payload = await getAdminApi<unknown>(
+      config,
+      `/businesses/${config.businessSlug}/customers`,
+      "customers",
+    );
+    return {
+      status: "ready",
+      customers: requireArray<AdminAppointmentCustomerOption>(payload, "customers", "customers"),
+    };
+  } catch (error) {
+    logAdminFormLoadError("customers", error);
+    return {
+      status: "error",
+      message: "No pudimos cargar los clientes. Intenta nuevamente.",
+    };
+  }
+}
+
+function normalizeBookedIntervals(payload: AppointmentCalendarResponse) {
+  if (!Array.isArray(payload.appointments)) {
+    throw new AdminFormLoadError("availability", "Calendar appointments payload is not an array.");
+  }
+
+  return payload.appointments.flatMap((appointment) => {
+    if (appointment.status !== "CONFIRMED"
+      || !isNonEmptyString(appointment.startAt)
+      || !isNonEmptyString(appointment.endAt)) {
+      return [];
+    }
+
+    return [{
+      startsAt: appointment.startAt,
+      endsAt: appointment.endAt,
+    }];
+  });
+}
+
+function addCalendarDays(date: string, days: number): string {
+  const [year, month, day] = date.split("-").map(Number);
+  const value = new Date(Date.UTC(year, month - 1, day + days, 12, 0, 0));
+
+  return [
+    value.getUTCFullYear(),
+    String(value.getUTCMonth() + 1).padStart(2, "0"),
+    String(value.getUTCDate()).padStart(2, "0"),
+  ].join("-");
+}
+
 function requireArray<T>(
   value: unknown,
   block: AdminAppointmentFormLoadBlock,
@@ -409,14 +498,14 @@ function getSantiagoTodayDate(): string {
 function mapCreateAppointmentError(code: string): string {
   const messages: Record<string, string> = {
     APPOINTMENT_CREATE_INVALID_INPUT: "Revisa los datos de la cita.",
-    APPOINTMENT_INVALID_SERVICE_SELECTION: "Selecciona un servicio valido para la cita.",
-    APPOINTMENT_SLOT_IN_PAST: "El horario seleccionado ya paso.",
+    APPOINTMENT_INVALID_SERVICE_SELECTION: "Revisa los servicios seleccionados.",
+    APPOINTMENT_SLOT_IN_PAST: "El horario seleccionado ya pasó.",
     APPOINTMENT_OUTSIDE_BUSINESS_HOURS: "El horario esta fuera del horario del negocio.",
     APPOINTMENT_OUTSIDE_PROFESSIONAL_AVAILABILITY: "El profesional no esta disponible en ese horario.",
     APPOINTMENT_SLOT_BLOCKED: "Ese horario esta bloqueado. Elige otro.",
-    APPOINTMENT_SLOT_ALREADY_TAKEN: "Ese horario ya fue reservado. Elige otro.",
+    APPOINTMENT_SLOT_ALREADY_TAKEN: "Ese horario acaba de ser reservado. Elige otra hora disponible.",
     APPOINTMENT_CUSTOMER_OVERLAP: "El cliente ya tiene una cita en ese horario. Elige otro horario o revisa su agenda.",
-    LOCATION_NOT_FOUND: "La ubicacion seleccionada no esta disponible.",
+    LOCATION_NOT_FOUND: "La ubicación seleccionada no está disponible.",
     CUSTOMER_NOT_FOUND: "El cliente seleccionado no existe.",
     SERVICE_NOT_FOUND: "El servicio seleccionado no existe.",
     PROFESSIONAL_NOT_FOUND: "El profesional seleccionado no existe.",

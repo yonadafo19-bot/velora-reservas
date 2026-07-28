@@ -66,6 +66,10 @@ export interface AdminAppointmentAvailability {
   businessHours: AdminAppointmentBusinessHour[];
   weeklyRules: AdminAppointmentWeeklyRule[];
   timeOff: AdminAppointmentTimeOff[];
+  bookedIntervals: Array<{
+    startsAt: string;
+    endsAt: string;
+  }>;
 }
 
 export interface AdminAppointmentFormData {
@@ -94,6 +98,16 @@ export type AdminAppointmentFormLoadState =
       debugBlock?: AdminAppointmentFormLoadBlock;
     };
 
+export type AdminAppointmentCustomersLoadState =
+  | {
+      status: "ready";
+      customers: AdminAppointmentCustomerOption[];
+    }
+  | {
+      status: "error";
+      message: string;
+    };
+
 export type AdminAppointmentAvailabilityLoadState =
   | {
       status: "ready";
@@ -117,7 +131,7 @@ export type AdminAppointmentFormLoadBlock =
 export interface AdminCreateAppointmentInput {
   businessSlug: string;
   customerId: string;
-  serviceId: string;
+  serviceIds: string[];
   professionalId: string;
   locationId: string;
   date: string;

@@ -1,7 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import {
   createAdminAppointmentAction,
@@ -14,11 +22,12 @@ import type {
   AdminAppointmentAvailabilityLoadState,
   AdminAppointmentFormData,
   AdminAppointmentFormLoadState,
+  AdminAppointmentServiceOption,
 } from "@/types/admin-appointment-form";
 
 interface FormState {
   customerId: string;
-  serviceId: string;
+  serviceIds: string[];
   professionalId: string;
   locationId: string;
   date: string;
@@ -27,22 +36,19 @@ interface FormState {
 
 interface TimeOption {
   time: string;
-  isAvailable: boolean;
-  reason?: string;
 }
 
-const DEFAULT_TIME_ZONE = "America/Santiago";
-const SLOT_STEP_MINUTES = 30;
-const PAST_DATE_MESSAGE = "No puedes crear una cita en una fecha pasada.";
-const initialFormState: FormState = {
+const TIME_ZONE = "America/Santiago";
+const SLOT_STEP_MINUTES = 15;
+const initialFormState = (): FormState => ({
   customerId: "",
-  serviceId: "",
+  serviceIds: [],
   professionalId: "",
   locationId: "",
   date: todayInSantiago(),
   time: "",
-};
-const weekdayByShortLabel: Record<string, "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY"> = {
+});
+const weekdayByShortLabel: Record<string, Weekday> = {
   Mon: "MONDAY",
   Tue: "TUESDAY",
   Wed: "WEDNESDAY",
@@ -52,126 +58,129 @@ const weekdayByShortLabel: Record<string, "MONDAY" | "TUESDAY" | "WEDNESDAY" | "
   Sun: "SUNDAY",
 };
 
+type Weekday = "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY";
+
 export function AdminNewAppointmentPanel({ businessSlug }: { businessSlug: string }) {
   const router = useRouter();
-  const [isOpen, setIsOpen] = useState(false);
+  const searchParams = useSearchParams();
+  const opensFromQuery = searchParams.get("nueva") === "1";
+  const [isOpen, setIsOpen] = useState(opensFromQuery);
   const [form, setForm] = useState<AdminAppointmentFormLoadState | null>(null);
   const [formState, setFormState] = useState<FormState>(initialFormState);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [isCreating, startCreateTransition] = useTransition();
-  const [, startFormTransition] = useTransition();
+  const [isLoadingForm, startFormTransition] = useTransition();
 
-  const loadForm = () => {
+  const loadForm = useCallback(() => {
     startFormTransition(async () => {
       setDialogError(null);
       setForm(await loadAdminAppointmentFormAction(businessSlug));
     });
-  };
+  }, [businessSlug]);
+
+  const openPanel = useCallback(() => {
+    setDialogError(null);
+    setIsOpen(true);
+    if (!form) {
+      loadForm();
+    }
+  }, [form, loadForm]);
+  const closePanel = useCallback(() => {
+    setDialogError(null);
+    setIsOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!opensFromQuery || form) {
+      return;
+    }
+    let cancelled = false;
+    void loadAdminAppointmentFormAction(businessSlug).then((result) => {
+      if (!cancelled) {
+        setForm(result);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [businessSlug, form, opensFromQuery]);
 
   return <div>
-    <button className="button" type="button" onClick={() => {
-      setDialogError(null);
-      setIsOpen(true);
-      if (!form) {
-        loadForm();
-      }
-    }}>Nueva cita</button>
-    {message && message.type === "success" && <small style={{ display: "block", marginTop: 8, color: "#397052", maxWidth: 260 }}>{message.text}</small>}
-    {isOpen && (!form
-      ? <AppointmentFormLoadingDialog onClose={() => {
-        setIsOpen(false);
-        setForm(null);
-      }}/>
+    <button className="button" type="button" onClick={openPanel}>Nueva cita</button>
+    {toast && <div className="admin-toast" role="status">{toast}</div>}
+    {isOpen && (!form || isLoadingForm
+      ? <AppointmentDialog title="Nueva cita" onClose={closePanel}>
+          <AppointmentLoading/>
+        </AppointmentDialog>
       : form.status !== "ready"
-        ? <AppointmentFormErrorDialog message={form.message} onClose={() => setIsOpen(false)} onRetry={loadForm}/>
-        : <AppointmentFormDialog
-          data={form.data}
-          errorMessage={dialogError}
-          formState={formState}
-          isPending={isCreating}
-          onChange={(patch) => {
-            setFormState((current) => ({ ...current, ...patch }));
-            setDialogError(null);
-            setMessage(null);
-          }}
-          onClose={() => {
-            setDialogError(null);
-            setIsOpen(false);
-            setForm(null);
-          }}
-          onSubmit={(error) => {
-            if (error) {
-              setDialogError(error);
-              return;
-            }
-
-            startCreateTransition(async () => {
+        ? <AppointmentDialog title="Nueva cita" onClose={closePanel}>
+            <Notice title="No pudimos preparar la cita" message={form.message} mode="error"/>
+            <div className="admin-action-row admin-dialog-retry">
+              <button className="button button--ghost" type="button" onClick={closePanel}>Cerrar</button>
+              <button className="button" type="button" onClick={loadForm}>Reintentar</button>
+            </div>
+          </AppointmentDialog>
+        : <AppointmentForm
+            data={form.data}
+            errorMessage={dialogError}
+            formState={formState}
+            isPending={isCreating}
+            onChange={(next) => {
+              setFormState(next);
               setDialogError(null);
-              const result = await createAdminAppointmentAction({
-                businessSlug: form.data.businessSlug,
-                ...formState,
-              });
-
-              if (result.ok) {
-                setMessage({ type: "success", text: "Cita creada correctamente." });
-                setFormState(initialFormState);
-                setForm(null);
-                setIsOpen(false);
-                router.refresh();
+              setToast(null);
+            }}
+            onClose={closePanel}
+            onSubmit={(validationError) => {
+              if (validationError) {
+                setDialogError(validationError);
                 return;
               }
 
-              if (isCompatibilityError(result.code)) {
-                setFormState((current) => ({
-                  ...current,
-                  professionalId: "",
-                  locationId: "",
-                  time: "",
-                }));
-                setDialogError("Las opciones de profesional o ubicación cambiaron. Vuelve a elegirlas e intenta nuevamente.");
-                startFormTransition(async () => {
-                  setForm(await loadAdminAppointmentFormAction(businessSlug));
+              startCreateTransition(async () => {
+                setDialogError(null);
+                const result = await createAdminAppointmentAction({
+                  businessSlug: form.data.businessSlug,
+                  ...formState,
                 });
-                return;
-              }
+                if (result.ok) {
+                  setToast("Cita creada correctamente");
+                  setFormState(initialFormState());
+                  setIsOpen(false);
+                  const query = new URLSearchParams(searchParams.toString());
+                  query.delete("nueva");
+                  query.set("negocio", businessSlug);
+                  if (result.appointmentId) {
+                    query.set("cita", result.appointmentId);
+                  }
+                  router.replace(`/admin/citas?${query.toString()}`);
+                  router.refresh();
+                  return;
+                }
 
-              setDialogError(result.message);
-            });
-          }}
-        />)}
+                if (result.code === "APPOINTMENT_SLOT_ALREADY_TAKEN"
+                  || result.code === "APPOINTMENT_CUSTOMER_OVERLAP") {
+                  setFormState((current) => ({ ...current, time: "" }));
+                }
+                if (isCompatibilityError(result.code)) {
+                  setFormState((current) => ({
+                    ...current,
+                    professionalId: "",
+                    locationId: "",
+                    time: "",
+                  }));
+                  setForm(null);
+                  loadForm();
+                }
+                setDialogError(result.message);
+              });
+            }}
+          />)}
   </div>;
 }
 
-function AppointmentFormLoadingDialog({ onClose }: { onClose: () => void }) {
-  return <AppointmentDialog title="Nueva cita" onClose={onClose}>
-    <div className="admin-dialog-loading" aria-live="polite" aria-busy="true">
-      <div className="admin-skeleton admin-skeleton--line admin-skeleton--wide"/>
-      <div className="admin-skeleton-grid"><div/><div/><div/><div/></div>
-      <p>Preparando datos de la cita…</p>
-    </div>
-  </AppointmentDialog>;
-}
-
-function AppointmentFormErrorDialog({
-  message,
-  onClose,
-  onRetry,
-}: {
-  message: string;
-  onClose: () => void;
-  onRetry: () => void;
-}) {
-  return <AppointmentDialog title="Nueva cita" onClose={onClose}>
-    <Notice title="No pudimos preparar la cita" message={message} mode="error"/>
-    <div className="admin-action-row admin-dialog-retry">
-      <button className="button button--ghost" type="button" onClick={onClose}>Cerrar</button>
-      <button className="button" type="button" onClick={onRetry}>Reintentar</button>
-    </div>
-  </AppointmentDialog>;
-}
-
-function AppointmentFormDialog({
+function AppointmentForm({
   data,
   errorMessage,
   formState,
@@ -181,44 +190,43 @@ function AppointmentFormDialog({
   onSubmit,
 }: {
   data: AdminAppointmentFormData;
-  errorMessage?: string | null;
+  errorMessage: string | null;
   formState: FormState;
   isPending: boolean;
-  onChange: (patch: Partial<FormState>) => void;
+  onChange: (state: FormState) => void;
   onClose: () => void;
   onSubmit: (error?: string) => void;
 }) {
   const availabilityRequestId = useRef(0);
   const availabilityCache = useRef(new Map<string, AdminAppointmentAvailabilityLoadState>());
   const availabilityRequests = useRef(new Map<string, Promise<AdminAppointmentAvailabilityLoadState>>());
-  const [availabilityState, setAvailabilityState] = useState<AdminAppointmentAvailabilityLoadState | null>(null);
+  const [availabilityResult, setAvailabilityResult] = useState<{
+    key: string;
+    state: AdminAppointmentAvailabilityLoadState;
+  } | null>(null);
   const [availabilityRetry, setAvailabilityRetry] = useState(0);
   const [isAvailabilityPending, startAvailabilityTransition] = useTransition();
-  const resolvedData = useMemo(() => {
-    if (availabilityState?.status !== "ready") {
-      return data;
-    }
-
-    const { professionalId, availability } = availabilityState.data;
-    return {
-      ...data,
-      availabilityByProfessionalId: {
-        ...data.availabilityByProfessionalId,
-        [professionalId]: availability,
-      },
-    };
-  }, [availabilityState, data]);
-  const selectedService = data.services.find((service) => service.id === formState.serviceId);
-  const compatibleProfessionals = useMemo(
-    () => formState.serviceId
-      ? data.professionals.filter((professional) =>
-        professional.locations.length > 0
-        && professional.services.some((service) => service.id === formState.serviceId),
-      )
-      : [],
-    [data.professionals, formState.serviceId],
+  const selectedServices = useMemo(
+    () => formState.serviceIds.flatMap((serviceId) => {
+      const service = data.services.find((item) => item.id === serviceId);
+      return service ? [service] : [];
+    }),
+    [data.services, formState.serviceIds],
   );
-  const selectedProfessional = data.professionals.find(
+  const totalDuration = selectedServices.reduce((total, service) => total + service.durationMinutes, 0);
+  const totalPrice = selectedServices.reduce((total, service) => total + service.priceFrom, 0);
+  const compatibleProfessionals = useMemo(
+    () => formState.serviceIds.length === 0
+      ? []
+      : data.professionals.filter((professional) =>
+        professional.locations.length > 0
+        && formState.serviceIds.every((serviceId) =>
+          professional.services.some((service) => service.id === serviceId),
+        ),
+      ),
+    [data.professionals, formState.serviceIds],
+  );
+  const selectedProfessional = compatibleProfessionals.find(
     (professional) => professional.id === formState.professionalId,
   );
   const compatibleLocations = useMemo(
@@ -226,422 +234,404 @@ function AppointmentFormDialog({
     [selectedProfessional],
   );
   const selectedLocation = compatibleLocations.find((location) => location.id === formState.locationId);
+  const availabilityKey = [
+    formState.professionalId,
+    formState.locationId,
+    formState.date,
+  ].join(":");
+  const availabilityState = availabilityResult?.key === availabilityKey
+    ? availabilityResult.state
+    : null;
   const timeOptions = useMemo(
-    () => buildTimeOptions(resolvedData, formState, selectedService?.durationMinutes ?? 0),
-    [formState, resolvedData, selectedService?.durationMinutes],
+    () => availabilityState?.status === "ready"
+      ? buildTimeOptions(availabilityState.data.availability, formState, totalDuration)
+      : [],
+    [availabilityState, formState, totalDuration],
   );
-  const todayDate = todayInSantiago();
-  const selectedTimeOption = timeOptions.find((option) => option.time === formState.time);
-  const hasAvailableTimes = timeOptions.some((option) => option.isAvailable);
-
-  useEffect(() => {
-    if (formState.time && (!selectedTimeOption || !selectedTimeOption.isAvailable)) {
-      onChange({ time: "" });
-    }
-  }, [formState.time, onChange, selectedTimeOption]);
-
+  const selectedEndTime = formState.time
+    ? addMinutesToTime(formState.time, totalDuration)
+    : "";
   const disabledReason = getDisabledReason(data);
-
-  const hasValidAvailabilitySelection = Boolean(
-    formState.serviceId
-    && selectedProfessional?.services.some((service) => service.id === formState.serviceId)
-    && formState.locationId
-    && selectedProfessional?.locations.some((location) => location.id === formState.locationId)
+  const canLoadAvailability = Boolean(
+    formState.serviceIds.length > 0
+    && selectedProfessional
+    && selectedLocation
     && /^\d{4}-\d{2}-\d{2}$/.test(formState.date)
-    && formState.date >= todayDate,
+    && formState.date >= todayInSantiago(),
   );
 
   useEffect(() => {
     const requestId = availabilityRequestId.current + 1;
     availabilityRequestId.current = requestId;
-
-    if (!hasValidAvailabilitySelection || !selectedProfessional) {
+    if (!canLoadAvailability || !selectedProfessional || !selectedLocation) {
       return;
     }
 
-    const cached = availabilityCache.current.get(selectedProfessional.id);
+    const cached = availabilityCache.current.get(availabilityKey);
     if (cached) {
       startAvailabilityTransition(async () => {
         await Promise.resolve();
         if (availabilityRequestId.current === requestId) {
-          setAvailabilityState(cached);
+          setAvailabilityResult({ key: availabilityKey, state: cached });
         }
       });
       return;
     }
 
-    const professionalId = selectedProfessional.id;
-    let availabilityRequest = availabilityRequests.current.get(professionalId);
-    if (!availabilityRequest) {
-      availabilityRequest = loadAdminAppointmentAvailabilityAction({
+    let request = availabilityRequests.current.get(availabilityKey);
+    if (!request) {
+      request = loadAdminAppointmentAvailabilityAction({
         businessSlug: data.businessSlug,
-        professionalId,
-      }).catch(() => ({
-        status: "error" as const,
-        message: "No pudimos cargar los horarios. Intenta nuevamente.",
-      }));
-      availabilityRequests.current.set(professionalId, availabilityRequest);
+        professionalId: selectedProfessional.id,
+        locationId: selectedLocation.id,
+        date: formState.date,
+      }).catch(() => ({ status: "error" as const, message: "No pudimos cargar los horarios. Intenta nuevamente." }));
+      availabilityRequests.current.set(availabilityKey, request);
     }
 
     startAvailabilityTransition(async () => {
-      const result = await availabilityRequest;
-      if (availabilityRequests.current.get(professionalId) === availabilityRequest) {
-        availabilityRequests.current.delete(professionalId);
-      }
+      const result = await request;
+      availabilityRequests.current.delete(availabilityKey);
+      availabilityCache.current.set(availabilityKey, result);
       if (availabilityRequestId.current === requestId) {
-        const selectedLocationStillAllowed = result.status !== "ready"
-          || result.data.locations.some((location) => location.id === formState.locationId);
-        const nextResult = selectedLocationStillAllowed
-          ? result
-          : {
-              status: "error" as const,
-              message: "Las opciones del profesional cambiaron. Vuelve a seleccionarlo.",
-            };
-        availabilityCache.current.set(professionalId, nextResult);
-        setAvailabilityState(nextResult);
+        setAvailabilityResult({ key: availabilityKey, state: result });
       }
     });
   }, [
+    availabilityKey,
     availabilityRetry,
+    canLoadAvailability,
     data.businessSlug,
     formState.date,
-    formState.locationId,
-    formState.serviceId,
-    hasValidAvailabilitySelection,
+    selectedLocation,
     selectedProfessional,
   ]);
 
+  const toggleService = (service: AdminAppointmentServiceOption) => {
+    const isSelected = formState.serviceIds.includes(service.id);
+    const serviceIds = isSelected
+      ? formState.serviceIds.filter((serviceId) => serviceId !== service.id)
+      : [...formState.serviceIds, service.id];
+    const professionalRemainsCompatible = Boolean(
+      formState.professionalId
+      && data.professionals.find((professional) =>
+        professional.id === formState.professionalId
+        && serviceIds.length > 0
+        && serviceIds.every((serviceId) =>
+          professional.services.some((assigned) => assigned.id === serviceId),
+        ),
+      ),
+    );
+    onChange({
+      ...formState,
+      serviceIds,
+      professionalId: professionalRemainsCompatible ? formState.professionalId : "",
+      locationId: professionalRemainsCompatible ? formState.locationId : "",
+      time: "",
+    });
+  };
+
   return <AppointmentDialog title="Nueva cita" onClose={onClose}>
     {disabledReason
-      ? <Notice title="Faltan datos" message={disabledReason} mode="warning"/>
-      : <form onSubmit={(event) => {
-        event.preventDefault();
-        onSubmit(validateForm(resolvedData, formState, timeOptions));
-      }}>
-        <div className="admin-field-grid">
-          <label>Cliente<select value={formState.customerId} onChange={(event) => onChange({ customerId: event.target.value })}><option value="">Selecciona cliente</option>{data.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.fullName} - {customer.phone}</option>)}</select></label>
-          <label>Servicio<select value={formState.serviceId} onChange={(event) => {
-            const serviceId = event.target.value;
-            const professionalRemainsCompatible = Boolean(
-              serviceId
-              && selectedProfessional?.locations.length
-              && selectedProfessional.services.some((service) => service.id === serviceId),
-            );
-            const locationRemainsCompatible = professionalRemainsCompatible
-              && selectedProfessional?.locations.some((location) => location.id === formState.locationId);
-            onChange({
-              serviceId,
-              professionalId: professionalRemainsCompatible ? formState.professionalId : "",
-              locationId: locationRemainsCompatible
-                ? formState.locationId
-                : professionalRemainsCompatible && selectedProfessional?.locations.length === 1
-                  ? selectedProfessional.locations[0].id
-                  : "",
-              time: "",
-            });
-          }}><option value="">Selecciona servicio</option>{data.services.map((service) => <option key={service.id} value={service.id}>{service.name} - {formatClp(service.priceFrom)}</option>)}</select></label>
-          <label>Profesional<select value={formState.professionalId} onChange={(event) => {
-            const professionalId = event.target.value;
-            const professional = compatibleProfessionals.find((item) => item.id === professionalId);
-            const locationId = professional?.locations.length === 1
-              ? professional.locations[0].id
-              : "";
-            onChange({ professionalId, locationId, time: "" });
-          }} disabled={!formState.serviceId}><option value="">{formState.serviceId ? "Selecciona profesional" : "Selecciona un servicio primero"}</option>{compatibleProfessionals.map((professional) => <option key={professional.id} value={professional.id}>{professional.displayName}{professional.roleTitle ? ` - ${professional.roleTitle}` : ""}</option>)}</select></label>
-          {compatibleLocations.length === 1 && selectedLocation
-            ? <div className="admin-field-summary"><span>Ubicaci&oacute;n</span><strong>{operationalDisplayName(selectedLocation.name)}</strong><small>Asignada al profesional seleccionado</small></div>
-            :
-          <label>Ubicación<select value={formState.locationId} onChange={(event) => onChange({ locationId: event.target.value, time: "" })} disabled={isAvailabilityPending || !formState.professionalId || compatibleLocations.length === 0}><option value="">{isAvailabilityPending ? "Consultando disponibilidad…" : "Selecciona ubicación"}</option>{compatibleLocations.map((location) => <option key={location.id} value={location.id}>{operationalDisplayName(location.name)}</option>)}</select></label>
-          }
-        </div>
-        {isAvailabilityPending
-          ? <div className="admin-inline-loading" aria-live="polite" aria-busy="true"><span className="admin-skeleton admin-skeleton--line"/>Preparando horarios disponibles…</div>
-          : availabilityState?.status === "error"
-            ? <div className="admin-message admin-message--error"><span><strong>No pudimos cargar los horarios</strong>{availabilityState.message}</span><button className="button button--ghost" type="button" onClick={() => {
-              if (formState.professionalId) {
-                availabilityCache.current.delete(formState.professionalId);
-              }
-              setAvailabilityRetry((current) => current + 1);
-            }}>Reintentar</button></div>
-            : null}
-        <div className="admin-form-section">
-          <label>Fecha de la cita<input type="date" min={todayDate} value={formState.date} onChange={(event) => onChange({ date: event.target.value, time: "" })}/></label>
-          <div>
-            <div className="admin-form-section__header">
-              <div>
-                <strong>Hora de inicio</strong>
-                <small>Horarios disponibles para el profesional, ubicación y día seleccionados.</small>
+      ? <Notice title="Faltan datos para crear citas" message={disabledReason} mode="warning"/>
+      : <form className="admin-appointment-flow" onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit(validateForm(data, formState, timeOptions));
+        }}>
+          <div className="admin-appointment-steps">
+            <section className="admin-step-section">
+              <StepHeading number="1" title="Cliente" detail="Selecciona quién recibirá la atención."/>
+              <label className="admin-field-label">Cliente
+                <select value={formState.customerId} onChange={(event) => onChange({ ...formState, customerId: event.target.value })}>
+                  <option value="">Selecciona un cliente</option>
+                  {data.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.fullName} · {customer.phone}</option>)}
+                </select>
+              </label>
+            </section>
+
+            <section className="admin-step-section">
+              <StepHeading number="2" title="Servicios" detail="Puedes combinar uno o más servicios."/>
+              <div className="admin-service-selector">
+                {data.services.map((service) => {
+                  const position = formState.serviceIds.indexOf(service.id);
+                  return <button
+                    className={position >= 0 ? "is-selected" : ""}
+                    type="button"
+                    aria-pressed={position >= 0}
+                    key={service.id}
+                    onClick={() => toggleService(service)}
+                  >
+                    {position >= 0 && <b>{position + 1}</b>}
+                    <span><strong>{service.name}</strong><small>{formatDuration(service.durationMinutes)} · {formatClp(service.priceFrom)}</small></span>
+                    <i aria-hidden="true">{position >= 0 ? "✓" : "+"}</i>
+                  </button>;
+                })}
               </div>
+            </section>
+
+            <section className="admin-step-section">
+              <StepHeading number="3" title="Profesional" detail="Sólo mostramos profesionales compatibles con todos los servicios."/>
+              {formState.serviceIds.length === 0
+                ? <InlineHint text="Selecciona al menos un servicio para continuar."/>
+                : compatibleProfessionals.length === 0
+                  ? <Notice title="Sin profesionales compatibles" message="Ningún profesional activo realiza todos los servicios seleccionados." mode="warning"/>
+                  : <div className="admin-professional-selector">
+                      {compatibleProfessionals.map((professional) => <button
+                        className={professional.id === formState.professionalId ? "is-selected" : ""}
+                        type="button"
+                        aria-pressed={professional.id === formState.professionalId}
+                        key={professional.id}
+                        onClick={() => onChange({
+                          ...formState,
+                          professionalId: professional.id,
+                          locationId: professional.locations.length === 1 ? professional.locations[0].id : "",
+                          time: "",
+                        })}
+                      ><span>{initials(professional.displayName)}</span><strong>{professional.displayName}</strong><small>{professional.roleTitle ?? "Profesional"}</small></button>)}
+                    </div>}
+            </section>
+
+            {selectedProfessional && <section className="admin-step-section">
+              <StepHeading number="4" title="Sucursal" detail={compatibleLocations.length === 1 ? "Asignada automáticamente." : "Selecciona una sucursal compatible."}/>
+              {compatibleLocations.length === 1
+                ? <div className="admin-auto-selection"><span>✓</span><div><strong>{operationalDisplayName(compatibleLocations[0].name)}</strong><small>Sucursal disponible para esta atención</small></div></div>
+                : <label className="admin-field-label">Sucursal
+                    <select value={formState.locationId} onChange={(event) => onChange({ ...formState, locationId: event.target.value, time: "" })}>
+                      <option value="">Selecciona una sucursal</option>
+                      {compatibleLocations.map((location) => <option value={location.id} key={location.id}>{operationalDisplayName(location.name)}</option>)}
+                    </select>
+                  </label>}
+            </section>}
+
+            <section className="admin-step-section">
+              <StepHeading number="5" title="Fecha y hora" detail="Mostramos sólo horarios donde cabe la atención completa."/>
+              <label className="admin-field-label">Fecha
+                <input type="date" min={todayInSantiago()} value={formState.date} onChange={(event) => onChange({ ...formState, date: event.target.value, time: "" })}/>
+              </label>
+              {!canLoadAvailability
+                ? <InlineHint text="Completa servicios, profesional, sucursal y fecha para ver horarios."/>
+                : isAvailabilityPending
+                  ? <div className="admin-slot-grid" aria-label="Preparando horarios" aria-busy="true">{Array.from({ length: 8 }, (_, index) => <span className="admin-skeleton admin-skeleton--slot" key={index}/>)}</div>
+                  : availabilityState?.status === "error"
+                    ? <div className="admin-message admin-message--error"><span><strong>No pudimos cargar los horarios</strong>{availabilityState.message}</span><button className="button button--ghost" type="button" onClick={() => {
+                        availabilityCache.current.delete(availabilityKey);
+                        setAvailabilityRetry((current) => current + 1);
+                      }}>Reintentar</button></div>
+                    : timeOptions.length === 0
+                      ? <Notice title="Sin horarios disponibles" message="Prueba con otra fecha o profesional." mode="warning"/>
+                      : <div className="admin-slot-grid">{timeOptions.map((option) => <button
+                          type="button"
+                          className={`admin-slot ${formState.time === option.time ? "is-selected" : ""}`}
+                          aria-pressed={formState.time === option.time}
+                          key={option.time}
+                          onClick={() => onChange({ ...formState, time: option.time })}
+                        ><strong>{option.time}</strong><small>Disponible</small></button>)}</div>}
+            </section>
+          </div>
+
+          <aside className="admin-appointment-summary">
+            <div><span className="eyebrow">Resumen</span><h3>Tu nueva cita</h3></div>
+            <SummaryRow label="Cliente" value={data.customers.find((customer) => customer.id === formState.customerId)?.fullName ?? "Por seleccionar"}/>
+            <SummaryRow label="Servicios" value={selectedServices.length ? selectedServices.map((service) => service.name).join(" + ") : "Por seleccionar"}/>
+            <SummaryRow label="Profesional" value={selectedProfessional?.displayName ?? "Por seleccionar"}/>
+            <SummaryRow label="Inicio" value={formState.time ? `${formatDateLabel(formState.date)} · ${formState.time}` : "Por seleccionar"}/>
+            <SummaryRow label="Término estimado" value={selectedEndTime || "Por calcular"}/>
+            <div className="admin-summary-total"><span><small>Duración total</small><strong>{totalDuration ? formatDuration(totalDuration) : "—"}</strong></span><span><small>Total</small><strong>{formatClp(totalPrice)}</strong></span></div>
+            {errorMessage && <Notice title="No se pudo crear la cita" message={errorMessage} mode="error"/>}
+            <div className="admin-summary-actions">
+              <button className="button button--ghost" type="button" onClick={onClose} disabled={isPending}>Cerrar</button>
+              <button className="button" type="submit" disabled={isPending || !formState.time}>{isPending ? "Creando…" : "Crear cita"}</button>
             </div>
-            {!formState.serviceId || !formState.professionalId || !formState.locationId || !formState.date
-              ? <Notice title="Selecciona los datos primero" message="Elige servicio, profesional y ubicación para ver horarios disponibles." mode="info"/>
-              : isAvailabilityPending
-                ? <div className="admin-slot-grid admin-slot-grid--loading" aria-hidden="true">{Array.from({ length: 8 }, (_, index) => <span className="admin-skeleton admin-skeleton--slot" key={index}/>)}</div>
-                : availabilityState?.status !== "ready"
-                  ? <Notice title="Horarios pendientes" message="Completa los datos y vuelve a intentar si no aparecen horarios." mode="info"/>
-                  : timeOptions.length === 0 || !hasAvailableTimes
-                    ? <Notice title="Sin horarios disponibles" message="No hay horarios disponibles para esta fecha. Prueba con otro día u otro profesional." mode="warning"/>
-                    : <TimeSlotGrid options={timeOptions} selectedTime={formState.time} onSelect={(time) => onChange({ time })}/>}
-          </div>
-        </div>
-        <div className="admin-message admin-message--info" style={{ marginTop: 18 }}>
-          <span>
-            <strong>Resumen</strong>
-            {selectedService ? `${selectedService.name} - ${formatDuration(selectedService.durationMinutes)} - ${formatClp(selectedService.priceFrom)}` : "Selecciona un servicio."}
-            {selectedProfessional ? ` Profesional: ${selectedProfessional.displayName}.` : ""}
-            {selectedLocation ? ` Ubicación: ${operationalDisplayName(selectedLocation.name)}.` : ""}
-            {formState.time ? ` Hora: ${formState.time}.` : ""}
-          </span>
-        </div>
-        <div className="admin-message admin-message--info" style={{ marginTop: 12 }}>
-          <span><strong>Recomendación</strong>Te recomendamos llegar 5 minutos antes.</span>
-        </div>
-        {formState.serviceId && compatibleProfessionals.length === 0
-          ? <Notice title="Sin profesionales disponibles" message="No hay profesionales activos con una ubicación asignada para este servicio." mode="warning"/>
-          : null}
-        {formState.professionalId && compatibleLocations.length === 0
-          ? <Notice title="Sin ubicaciones disponibles" message="El profesional seleccionado no tiene ubicaciones activas." mode="warning"/>
-          : null}
-        {errorMessage
-          ? <Notice title="No se pudo crear la cita" message={errorMessage} mode="error"/>
-          : null}
-        <div className="admin-dialog__footer">
-          <div className="admin-action-row" style={{ marginTop: 0 }}>
-            <button className="button button--ghost" type="button" onClick={onClose} disabled={isPending}>Cerrar</button>
-            <button className="button" type="submit" disabled={isPending || !formState.time}>{isPending ? "Creando..." : "Crear cita"}</button>
-          </div>
-        </div>
-      </form>}
+          </aside>
+        </form>}
   </AppointmentDialog>;
 }
 
-function TimeSlotGrid({
-  options,
-  selectedTime,
-  onSelect,
-}: {
-  options: TimeOption[];
-  selectedTime: string;
-  onSelect: (time: string) => void;
-}) {
-  return <div className="admin-slot-grid">
-    {options.map((option) => <button
-      key={option.time}
-      className={`admin-slot ${selectedTime === option.time ? "is-selected" : ""}`}
-      type="button"
-      aria-pressed={selectedTime === option.time}
-      disabled={!option.isAvailable}
-      onClick={() => onSelect(option.time)}
-      title={option.reason}
-    >
-      <strong>{option.time}</strong>
-      <small>{option.isAvailable ? "Disponible" : option.reason}</small>
-    </button>)}
-  </div>;
-}
-
 function AppointmentDialog({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
-  return <div className="admin-dialog-overlay" role="presentation">
-    <section className="admin-panel admin-dialog" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="admin-dialog__header"><div><h2>{title}</h2><p>Completa los datos para crear la cita.</p></div><button className="button button--ghost" type="button" onClick={onClose}>Cerrar</button></div>
+  const dialogRef = useRef<HTMLElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) {
+        return;
+      }
+      const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )].filter((element) => element.offsetParent !== null);
+      if (focusable.length === 0) {
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  return <div className="admin-dialog-overlay">
+    <button className="admin-dialog-backdrop" type="button" aria-label="Cerrar Nueva cita" onClick={onClose}/>
+    <section ref={dialogRef} className="admin-panel admin-dialog admin-appointment-dialog" role="dialog" aria-modal="true" aria-labelledby="new-appointment-title">
+      <div className="admin-dialog__header">
+        <div><span className="eyebrow">Agenda</span><h2 id="new-appointment-title">{title}</h2><p>Crea una atención compatible, paso a paso.</p></div>
+        <button ref={closeRef} className="admin-icon-button is-visible" type="button" aria-label="Cerrar Nueva cita" onClick={onClose}>×</button>
+      </div>
       <div className="admin-dialog__body">{children}</div>
     </section>
   </div>;
 }
 
-function Notice({ title, message, mode = "info" }: { title: string; message: string; mode?: "info" | "warning" | "error" }) {
-  return <div className={`admin-message admin-message--${mode}`} style={{ marginTop: 14 }}><span><strong>{title}</strong>{message}</span></div>;
+function AppointmentLoading() {
+  return <div className="admin-dialog-loading" aria-live="polite" aria-busy="true">
+    <div className="admin-skeleton admin-skeleton--line admin-skeleton--wide"/>
+    <div className="admin-skeleton-grid"><div/><div/><div/><div/></div>
+    <p>Preparando datos de la cita…</p>
+  </div>;
 }
 
-function validateForm(data: AdminAppointmentFormData, formState: FormState, timeOptions: TimeOption[]): string | undefined {
-  if (!formState.customerId || !formState.serviceId || !formState.professionalId || !formState.locationId || !formState.date || !formState.time) {
-    return "Completa todos los campos antes de crear la cita.";
-  }
+function StepHeading({ number, title, detail }: { number: string; title: string; detail: string }) {
+  return <div className="admin-step-heading"><b>{number}</b><span><strong>{title}</strong><small>{detail}</small></span></div>;
+}
 
-  if (formState.date < todayInSantiago()) {
-    return PAST_DATE_MESSAGE;
-  }
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return <div className="admin-summary-row"><small>{label}</small><strong>{value}</strong></div>;
+}
 
-  const professional = data.professionals.find((item) => item.id === formState.professionalId);
-  if (!professional?.services.some((service) => service.id === formState.serviceId)) {
-    return "El profesional seleccionado no realiza este servicio.";
-  }
+function InlineHint({ text }: { text: string }) {
+  return <div className="admin-inline-hint">{text}</div>;
+}
 
-  if (!(data.locationsByProfessionalId[formState.professionalId] ?? []).includes(formState.locationId)) {
-    return "La ubicación seleccionada no corresponde al profesional.";
-  }
+function Notice({ title, message, mode = "info" }: { title: string; message: string; mode?: "info" | "warning" | "error" }) {
+  return <div className={`admin-message admin-message--${mode}`}><span><strong>{title}</strong>{message}</span></div>;
+}
 
-  if (!timeOptions.some((option) => option.time === formState.time && option.isAvailable)) {
-    return "Selecciona un horario disponible para esta fecha.";
+function validateForm(data: AdminAppointmentFormData, state: FormState, options: TimeOption[]) {
+  if (!state.customerId || state.serviceIds.length === 0 || !state.professionalId || !state.locationId || !state.date || !state.time) {
+    return "Completa todos los pasos antes de crear la cita.";
   }
-
+  if (new Set(state.serviceIds).size !== state.serviceIds.length) {
+    return "No puedes seleccionar el mismo servicio más de una vez.";
+  }
+  const professional = data.professionals.find((item) => item.id === state.professionalId);
+  if (!professional || !state.serviceIds.every((serviceId) => professional.services.some((service) => service.id === serviceId))) {
+    return "El profesional no es compatible con todos los servicios seleccionados.";
+  }
+  if (!professional.locations.some((location) => location.id === state.locationId)) {
+    return "Selecciona una sucursal compatible.";
+  }
+  if (!options.some((option) => option.time === state.time)) {
+    return "Selecciona un horario disponible.";
+  }
   return undefined;
 }
 
-function buildTimeOptions(data: AdminAppointmentFormData, formState: FormState, durationMinutes: number): TimeOption[] {
-  if (!formState.date || !formState.serviceId || !formState.professionalId || !formState.locationId || durationMinutes <= 0) {
+function buildTimeOptions(
+  availability: AdminAppointmentFormData["availabilityByProfessionalId"][string],
+  state: FormState,
+  durationMinutes: number,
+): TimeOption[] {
+  if (!state.date || !state.locationId || durationMinutes <= 0) {
     return [];
   }
-
-  const availability = data.availabilityByProfessionalId[formState.professionalId];
-  if (!availability) {
-    return [];
-  }
-
-  const weekday = getWeekdayForSantiagoDate(formState.date);
-  const businessHours = availability.businessHours.filter((rule) =>
-    rule.weekday === weekday && (rule.locationId === null || rule.locationId === formState.locationId),
+  const weekday = getWeekday(state.date);
+  const businessHours = availability.businessHours.filter(
+    (rule) => rule.weekday === weekday && (rule.locationId === null || rule.locationId === state.locationId),
   );
-  const professionalRules = availability.weeklyRules.filter((rule) =>
-    rule.weekday === weekday && rule.locationId === formState.locationId,
+  const professionalHours = availability.weeklyRules.filter(
+    (rule) => rule.weekday === weekday && rule.locationId === state.locationId,
   );
   const intervals = intersectIntervals(
     businessHours.map((rule) => [timeToMinutes(rule.opensAtLocal), timeToMinutes(rule.closesAtLocal)]),
-    professionalRules.map((rule) => [timeToMinutes(rule.startsAtLocal), timeToMinutes(rule.endsAtLocal)]),
+    professionalHours.map((rule) => [timeToMinutes(rule.startsAtLocal), timeToMinutes(rule.endsAtLocal)]),
   );
-
-  if (intervals.length === 0) {
-    return [];
-  }
-
-  const now = getSantiagoNow();
-  const isToday = formState.date === now.date;
+  const now = getSantiagoParts(new Date());
   const options: TimeOption[] = [];
-
-  for (const [startsAt, endsAt] of intervals) {
-    for (let minute = startsAt; minute + durationMinutes <= endsAt; minute += SLOT_STEP_MINUTES) {
-      const time = minutesToTime(minute);
+  for (const [start, end] of intervals) {
+    for (let minute = start; minute + durationMinutes <= end; minute += SLOT_STEP_MINUTES) {
+      if (state.date === now.date && minute <= now.minutes) {
+        continue;
+      }
       const slotEnd = minute + durationMinutes;
-      const reason = getUnavailableReason({
-        date: formState.date,
-        minute,
-        slotEnd,
-        isToday,
-        nowMinutes: now.minutes,
-        locationId: formState.locationId,
-        timeOff: availability.timeOff,
-      });
-
-      options.push({
-        time,
-        isAvailable: !reason,
-        reason,
-      });
+      if (availability.timeOff.some((entry) => intervalOverlaps(entry.startsAt, entry.endsAt, state.date, minute, slotEnd, entry.locationId, state.locationId))) {
+        continue;
+      }
+      if (availability.bookedIntervals.some((entry) => intervalOverlaps(entry.startsAt, entry.endsAt, state.date, minute, slotEnd, state.locationId, state.locationId))) {
+        continue;
+      }
+      options.push({ time: minutesToTime(minute) });
     }
   }
-
-  return dedupeTimeOptions(options);
+  return [...new Map(options.map((option) => [option.time, option])).values()];
 }
 
-function getUnavailableReason({
-  date,
-  minute,
-  slotEnd,
-  isToday,
-  nowMinutes,
-  locationId,
-  timeOff,
-}: {
-  date: string;
-  minute: number;
-  slotEnd: number;
-  isToday: boolean;
-  nowMinutes: number;
-  locationId: string;
-  timeOff: AdminAppointmentFormData["availabilityByProfessionalId"][string]["timeOff"];
-}): string | undefined {
-  if (isToday && minute <= nowMinutes) {
-    return "Hora pasada";
-  }
-
-  if (timeOff.some((entry) => timeOffOverlapsSlot(entry, date, minute, slotEnd, locationId))) {
-    return "Bloqueado";
-  }
-
-  return undefined;
-}
-
-function timeOffOverlapsSlot(
-  entry: AdminAppointmentFormData["availabilityByProfessionalId"][string]["timeOff"][number],
+function intervalOverlaps(
+  startsAt: string,
+  endsAt: string,
   date: string,
   slotStart: number,
   slotEnd: number,
+  intervalLocationId: string | null,
   locationId: string,
 ) {
-  if (entry.locationId && entry.locationId !== locationId) {
+  if (intervalLocationId && intervalLocationId !== locationId) {
     return false;
   }
-
-  const start = getSantiagoDateTimeParts(new Date(entry.startsAt));
-  const end = getSantiagoDateTimeParts(new Date(entry.endsAt));
-
+  const start = getSantiagoParts(new Date(startsAt));
+  const end = getSantiagoParts(new Date(endsAt));
   if (date < start.date || date > end.date) {
     return false;
   }
-
   const blockedStart = date === start.date ? start.minutes : 0;
   const blockedEnd = date === end.date ? end.minutes : 24 * 60;
-
   return slotStart < blockedEnd && slotEnd > blockedStart;
 }
 
-function intersectIntervals(baseIntervals: number[][], overlayIntervals: number[][]) {
-  const intervals: number[][] = [];
-
-  for (const base of baseIntervals) {
-    for (const overlay of overlayIntervals) {
-      const startsAt = Math.max(base[0], overlay[0]);
-      const endsAt = Math.min(base[1], overlay[1]);
-
-      if (startsAt < endsAt) {
-        intervals.push([startsAt, endsAt]);
-      }
+function intersectIntervals(base: number[][], overlay: number[][]) {
+  const result: number[][] = [];
+  base.forEach(([baseStart, baseEnd]) => overlay.forEach(([overlayStart, overlayEnd]) => {
+    const start = Math.max(baseStart, overlayStart);
+    const end = Math.min(baseEnd, overlayEnd);
+    if (start < end) {
+      result.push([start, end]);
     }
-  }
-
-  return intervals.sort((left, right) => left[0] - right[0] || left[1] - right[1]);
+  }));
+  return result;
 }
 
-function dedupeTimeOptions(options: TimeOption[]) {
-  const byTime = new Map<string, TimeOption>();
-
-  for (const option of options) {
-    const existing = byTime.get(option.time);
-    if (!existing || (!existing.isAvailable && option.isAvailable)) {
-      byTime.set(option.time, option);
-    }
-  }
-
-  return [...byTime.values()].sort((left, right) => left.time.localeCompare(right.time));
-}
-
-function getDisabledReason(data: AdminAppointmentFormData): string | undefined {
-  if (data.customers.length === 0) {
-    return "No hay clientes disponibles para crear una cita.";
-  }
-
-  if (data.services.length === 0) {
-    return "No hay servicios activos para crear una cita.";
-  }
-
-  if (data.professionals.length === 0) {
-    return "No hay profesionales activos para crear una cita.";
-  }
-
+function getDisabledReason(data: AdminAppointmentFormData) {
+  if (data.customers.length === 0) return "No hay clientes disponibles.";
+  if (data.services.length === 0) return "No hay servicios activos.";
+  if (data.professionals.length === 0) return "No hay profesionales activos.";
   return undefined;
 }
 
-function todayInSantiago() {
-  return getSantiagoDateTimeParts(new Date()).date;
+function getWeekday(date: string): Weekday {
+  const [year, month, day] = date.split("-").map(Number);
+  const label = new Intl.DateTimeFormat("en-US", { timeZone: TIME_ZONE, weekday: "short" })
+    .format(new Date(Date.UTC(year, month - 1, day, 12)));
+  return weekdayByShortLabel[label] ?? "MONDAY";
 }
 
-function getSantiagoNow() {
-  return getSantiagoDateTimeParts(new Date());
-}
-
-function getSantiagoDateTimeParts(date: Date) {
+function getSantiagoParts(date: Date) {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: DEFAULT_TIME_ZONE,
+    timeZone: TIME_ZONE,
     hourCycle: "h23",
     year: "numeric",
     month: "2-digit",
@@ -649,39 +639,38 @@ function getSantiagoDateTimeParts(date: Date) {
     hour: "2-digit",
     minute: "2-digit",
   }).formatToParts(date);
-  const values = Object.fromEntries(
-    parts
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, part.value]),
-  );
-
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return {
-    date: `${values.year}-${values.month}-${values.day}`,
-    minutes: Number(values.hour) * 60 + Number(values.minute),
+    date: `${value.year}-${value.month}-${value.day}`,
+    minutes: Number(value.hour) * 60 + Number(value.minute),
   };
 }
 
-function getWeekdayForSantiagoDate(date: string) {
-  const [year, month, day] = date.split("-").map(Number);
-  const weekday = new Intl.DateTimeFormat("en-US", {
-    timeZone: DEFAULT_TIME_ZONE,
-    weekday: "short",
-  }).format(new Date(Date.UTC(year, month - 1, day, 12, 0, 0)));
-
-  return weekdayByShortLabel[weekday] ?? "MONDAY";
+function todayInSantiago() {
+  return getSantiagoParts(new Date()).date;
 }
 
-function timeToMinutes(time: string) {
-  const [hour, minute] = time.split(":").map(Number);
-
+function timeToMinutes(value: string) {
+  const [hour, minute] = value.split(":").map(Number);
   return hour * 60 + minute;
 }
 
-function minutesToTime(minutes: number) {
-  const hour = Math.floor(minutes / 60).toString().padStart(2, "0");
-  const minute = (minutes % 60).toString().padStart(2, "0");
+function minutesToTime(value: number) {
+  return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+}
 
-  return `${hour}:${minute}`;
+function addMinutesToTime(time: string, duration: number) {
+  return minutesToTime(timeToMinutes(time) + duration);
+}
+
+function formatDateLabel(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "short" })
+    .format(new Date(Date.UTC(year, month - 1, day, 12)));
+}
+
+function initials(name: string) {
+  return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 }
 
 function isCompatibilityError(code: string) {

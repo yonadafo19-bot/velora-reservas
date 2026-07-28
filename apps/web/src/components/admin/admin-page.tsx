@@ -1,148 +1,88 @@
-import Link from "next/link";
+import { AdminCalendarPanel } from "@/components/admin/admin-calendar-panel";
 import { AdminNewAppointmentPanel } from "@/components/admin/admin-new-appointment-panel";
+import { AdminOverviewPanel } from "@/components/admin/admin-overview-panel";
 import { operationalBusinessName, type AdminNavigation } from "@/components/admin/admin-session-nav";
 import { Icon } from "@/components/ui/icon";
-import { clients, getAppointments, getBusiness, getClients, getProfessionals, getServices, metrics, professionals, schedules, services } from "@/data/demo";
-import { operationalDisplayName } from "@/lib/admin-display";
-import { formatClp, formatDemoDate, formatDuration } from "@/lib/formatting";
-import type { AdminCalendarAppointment, AdminCalendarLoadState, AdminCalendarStatus } from "@/types/admin-calendar";
-import type { AppointmentStatus, BusinessVertical, DemoAppointment } from "@/types/demo";
+import type { AdminAppointmentCustomersLoadState } from "@/types/admin-appointment-form";
+import type { AdminCalendarLoadState } from "@/types/admin-calendar";
+import type { AdminOverviewLoadState } from "@/types/admin-overview";
+import type { BusinessVertical } from "@/types/demo";
 
 export type AdminView = "resumen" | "citas" | "clientes" | "servicios" | "profesionales" | "horarios" | "configuracion";
 
-const statusLabel: Record<AppointmentStatus, string> = { pending: "Pendiente", confirmed: "Confirmada", completed: "Completada", cancelled: "Cancelada", no_show: "No asistió" };
-const calendarStatusLabel: Record<AdminCalendarStatus, string> = {
-  CONFIRMED: "Confirmada",
-  COMPLETED: "Completada",
-  CANCELLED: "Cancelada",
-  NO_SHOW: "No asistió",
-};
-
 const titles: Record<AdminView, [string, string]> = {
-  resumen: ["El pulso de tu salón", "Una mirada clara a lo que está pasando hoy."],
-  citas: ["Agenda", "Revisa y organiza la agenda de tu equipo."],
+  resumen: ["Resumen", "Prioridades y actividad real de tu negocio."],
+  citas: ["Agenda", "Gestiona las citas y el trabajo diario de tu equipo."],
   clientes: ["Clientes", "Conoce a quienes eligen tu negocio."],
   servicios: ["Servicios", "Gestiona precios, duración y disponibilidad."],
   profesionales: ["Equipo", "Las personas que dan vida a la experiencia."],
   horarios: ["Horarios", "Disponibilidad semanal del equipo."],
-  configuracion: ["Configuración", "Vista previa de los datos del negocio."],
+  configuracion: ["Configuración", "Datos principales de tu operación."],
 };
 
-function AppointmentTable({ rows }: { rows: DemoAppointment[] }) {
-  return <div className="admin-table"><div className="table-head"><span>Hora</span><span>Cliente</span><span>Servicio</span><span>Profesional</span><span>Estado</span></div>{rows.map((appointment) => {
-    const client = clients.find((item) => item.clientId === appointment.clientId);
-    const service = services.find((item) => item.serviceId === appointment.serviceId);
-    const professional = professionals.find((item) => item.professionalId === appointment.professionalId);
-    return <div className="table-row" key={appointment.appointmentId}><span data-label="Hora"><strong>{appointment.time}</strong><small>{formatDemoDate(appointment.dayOffset)}</small></span><span data-label="Cliente"><strong>{client?.name}</strong><small>{client?.phone}</small></span><span data-label="Servicio">{service?.name}</span><span data-label="Profesional">{professional?.name}</span><span data-label="Estado"><i className={`status status--${appointment.status}`}>{statusLabel[appointment.status]}</i></span></div>;
-  })}</div>;
-}
-
-function MiniTrend({ variant = 1 }: { variant?: number }) {
-  const paths = ["M2 27 C14 25 18 15 29 18 S43 8 58 11 S72 3 86 6", "M2 25 C12 13 22 21 31 12 S48 18 58 8 S72 14 86 4", "M2 28 C15 29 18 20 31 21 S44 10 56 14 S72 5 86 8"];
-  return <svg className="mini-trend" viewBox="0 0 88 32" role="img" aria-label="Tendencia positiva"><path className="mini-trend__area" d={`${paths[(variant - 1) % paths.length]} L86 32 L2 32 Z`}/><path d={paths[(variant - 1) % paths.length]}/><circle cx="86" cy={variant === 2 ? "4" : variant === 3 ? "8" : "6"} r="2.5"/></svg>;
-}
-
-function formatCalendarTime(value: string) {
-  return new Intl.DateTimeFormat("es-CL", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "America/Santiago",
-  }).format(new Date(value));
-}
-
-function formatCalendarTimeRange(startAt: string, endAt: string) {
-  return `${formatCalendarTime(startAt)}–${formatCalendarTime(endAt)}`;
-}
-
-function formatCalendarDate(value: string) {
-  return new Intl.DateTimeFormat("es-CL", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    timeZone: "America/Santiago",
-  }).format(new Date(`${value}T12:00:00.000Z`));
-}
-
-function formatCalendarRange(from: string, to: string) {
-  const formatter = new Intl.DateTimeFormat("es-CL", {
-    day: "numeric",
-    month: "short",
-    timeZone: "America/Santiago",
-  });
-
-  return `${formatter.format(new Date(from))} al ${formatter.format(new Date(to))}`;
-}
-
-function appointmentServices(appointment: AdminCalendarAppointment) {
-  return appointment.services.length
-    ? appointment.services.map((service) => service.name).join(" + ")
-    : "Servicio sin detalle";
-}
-
-function appointmentProfessionals(appointment: AdminCalendarAppointment) {
-  return appointment.professionals.length
-    ? appointment.professionals.map((professional) => professional.displayName).join(", ")
-    : "Sin profesional asignado";
-}
-
-function CalendarAppointmentsTable({ appointments }: { appointments: AdminCalendarAppointment[] }) {
-  return <div className="admin-table"><div className="table-head"><span>Hora</span><span>Cliente</span><span>Servicio</span><span>Equipo y ubicación</span><span>Estado</span></div>{appointments.map((appointment) => <div className="table-row" key={appointment.id}><span data-label="Hora"><strong>{formatCalendarTimeRange(appointment.startAt, appointment.endAt)}</strong><small>{formatCalendarDate(appointment.localDate)}</small></span><span data-label="Cliente"><strong>{appointment.customer.fullName || "Cliente sin nombre"}</strong><small>{appointment.customer.phone}</small></span><span data-label="Servicio"><strong>{appointmentServices(appointment)}</strong><small>{formatDuration(appointment.totalDurationMinutes)} · {formatClp(appointment.totalPriceClp)}</small></span><span data-label="Equipo y ubicación"><strong>{appointmentProfessionals(appointment)}</strong><small>{operationalDisplayName(appointment.location.name)}</small></span><span data-label="Estado"><i className={`status status--${appointment.status.toLowerCase()}`}>{calendarStatusLabel[appointment.status]}</i></span></div>)}</div>;
-}
-
-function CalendarStateNotice({ title, message }: { title: string; message: string }) {
-  return <section className="admin-panel"><div className="demo-notice"><Icon name="sparkles"/><span><strong>{title}</strong>{message}</span></div></section>;
-}
-
-function AdminCalendarPanel({ calendar }: { calendar?: AdminCalendarLoadState }) {
-  if (!calendar) {
-    return <CalendarStateNotice title="Agenda no disponible" message="No pudimos preparar la agenda en este momento."/>;
-  }
-
-  if (calendar.status === "missing-config") {
-    return <CalendarStateNotice title="Agenda no disponible" message={calendar.message}/>;
-  }
-
-  if (calendar.status === "error") {
-    return <CalendarStateNotice title="No pudimos cargar la agenda" message={calendar.message}/>;
-  }
-
-  const { data } = calendar;
-
-  return <>
-    <div className="metric-grid">
-      <article><span className="metric-icon"><Icon name="calendar"/></span><small>Total</small><strong>{data.summary.total}</strong><em>Citas del período</em></article>
-      <article><span className="metric-icon"><Icon name="clock"/></span><small>Confirmadas</small><strong>{data.summary.byStatus.CONFIRMED}</strong><em>Proximos 7 dias</em></article>
-      <article><span className="metric-icon"><Icon name="chart"/></span><small>Completadas</small><strong>{data.summary.byStatus.COMPLETED}</strong><em>Rango seleccionado</em></article>
-      <article><span className="metric-icon"><Icon name="sparkles"/></span><small>Canceladas / no asistio</small><strong>{data.summary.byStatus.CANCELLED + data.summary.byStatus.NO_SHOW}</strong><em>{data.summary.byStatus.CANCELLED} canceladas · {data.summary.byStatus.NO_SHOW} no asistio</em></article>
-    </div>
-    <section className="admin-panel">
-      <div className="panel-heading"><div><h2>Agenda</h2><p>{formatCalendarRange(data.range.from, data.range.to)} · {data.range.timezone}</p></div><span className="status status--confirmed">Actualizada</span></div>
-      {data.appointments.length === 0
-        ? <div className="demo-notice"><Icon name="calendar"/><span><strong>No hay citas para este rango.</strong>Las próximas reservas aparecerán aquí.</span></div>
-        : <CalendarAppointmentsTable appointments={data.appointments}/>}
-    </section>
-  </>;
-}
-
-export function AdminPage({ view, vertical, navigation, calendar }: { view: AdminView; vertical: BusinessVertical; path: string; navigation: AdminNavigation; calendar?: AdminCalendarLoadState }) {
-  const business = getBusiness(vertical);
-  const businessAppointments = getAppointments(vertical);
-  const businessClients = getClients(vertical);
-  const businessServices = getServices(vertical);
-  const businessProfessionals = getProfessionals(vertical);
-  const businessMetric = metrics.find((item) => item.vertical === vertical)!;
+export function AdminPage({
+  view,
+  vertical,
+  navigation,
+  calendar,
+  overview,
+  initialAppointmentId,
+  customers,
+}: {
+  view: AdminView;
+  vertical: BusinessVertical;
+  path: string;
+  navigation: AdminNavigation;
+  calendar?: AdminCalendarLoadState;
+  overview?: AdminOverviewLoadState;
+  initialAppointmentId?: string;
+  customers?: AdminAppointmentCustomersLoadState;
+}) {
   const [title, subtitle] = titles[view];
-  const businessName = operationalBusinessName(
-    navigation.businesses.find((item) => item.businessSlug === navigation.currentBusinessSlug)?.businessName
-      ?? business.name,
+  const currentBusiness = navigation.businesses.find(
+    (item) => item.businessSlug === navigation.currentBusinessSlug,
   );
-  return <div className="admin-content"><div className="admin-heading"><div><span className="eyebrow">{businessName.toUpperCase()}</span><h1>{title}</h1><p>{subtitle}</p></div>{view === "citas" && <AdminNewAppointmentPanel businessSlug={navigation.currentBusinessSlug}/>}</div>
-      {view === "resumen" && <><div className="metric-grid"><article><span className="metric-icon"><Icon name="calendar"/></span><small>Citas de hoy</small><strong>{businessMetric.todayAppointments}</strong><em>2 pendientes</em><MiniTrend variant={1}/></article><article><span className="metric-icon"><Icon name="chart"/></span><small>Esta semana</small><strong>{businessMetric.weekAppointments}</strong><em>+12% vs. anterior</em><MiniTrend variant={2}/></article><article><span className="metric-icon"><Icon name="sparkles"/></span><small>Ingreso estimado</small><strong>{formatClp(businessMetric.estimatedMonthlyRevenueClp)}</strong><em>Mes en curso</em><MiniTrend variant={3}/></article><article><span className="metric-icon"><Icon name="clock"/></span><small>Ocupación</small><strong>{businessMetric.occupancyPercent}%</strong><em>Agenda disponible</em><MiniTrend variant={2}/></article></div><div className="admin-two-col"><section className="admin-panel"><div className="panel-heading"><div><h2>Próximas citas</h2><p>Agenda de hoy</p></div><Link href={`/admin/citas?negocio=${encodeURIComponent(navigation.currentBusinessSlug)}`}>Ver todas</Link></div><AppointmentTable rows={businessAppointments.slice(0, 3)}/></section><section className="admin-panel"><div className="panel-heading"><div><h2>Servicios destacados</h2><p>Más reservados este mes</p></div></div><div className="ranking-list">{businessServices.slice(0, 3).map((service, index) => <div key={service.serviceId}><span>0{index + 1}</span><div><strong>{service.name}</strong><small>{12 - index * 2} reservas</small></div><b>{formatClp(service.priceClp)}</b></div>)}</div></section></div><section className="admin-panel recent-clients"><div className="panel-heading"><div><h2>Clientes recientes</h2><p>Actividad reciente</p></div><Link href={`/admin/clientes?negocio=${encodeURIComponent(navigation.currentBusinessSlug)}`}>Ver clientes</Link></div><div className="client-strip">{businessClients.map((client) => <div key={client.clientId}><span>{client.name.split(" ").map((part) => part[0]).join("")}</span><div><strong>{client.name}</strong><small>{client.lastVisit}</small></div></div>)}</div></section></>}
-      {view === "citas" && <AdminCalendarPanel calendar={calendar}/>}
-      {view === "clientes" && <section className="admin-panel"><div className="card-list">{businessClients.map((client) => <article className="entity-card" key={client.clientId}><span className="entity-avatar">{client.name.split(" ").map((part) => part[0]).join("")}</span><div><h3>{client.name}</h3><p>{client.phone}</p></div><div><small>Última visita</small><strong>{client.lastVisit}</strong></div><div><small>Visitas</small><strong>{client.totalVisits}</strong></div></article>)}</div></section>}
-      {view === "servicios" && <div className="admin-card-grid">{businessServices.map((service) => <article className="catalog-card" key={service.serviceId}><div><span className="catalog-icon"><Icon name="sparkles"/></span><span className="status status--confirmed">Activo</span></div><h3>{service.name}</h3><p>{service.description}</p><footer><span><Icon name="clock" size={16}/>{formatDuration(service.durationMinutes)}</span><strong>{formatClp(service.priceClp)}</strong></footer></article>)}</div>}
-      {view === "profesionales" && <div className="admin-card-grid professional-grid">{businessProfessionals.map((person) => <article className="professional-card" key={person.professionalId}><span className="large-avatar">{person.initials}</span><h3>{person.name}</h3><p>{person.role}</p><div><span>{person.serviceIds.length} servicios</span><span className="status status--confirmed">Disponible</span></div></article>)}</div>}
-      {view === "horarios" && <section className="admin-panel"><div className="schedule-list">{schedules.filter((item) => item.vertical === vertical).map((schedule) => { const person = professionals.find((item) => item.professionalId === schedule.professionalId)!; return <article key={schedule.professionalId}><div><span className="entity-avatar">{person.initials}</span><span><strong>{person.name}</strong><small>{person.role}</small></span></div><div className="weekday-row">{schedule.weekdays.map((day) => <span key={day}>{day}</span>)}</div><strong>{schedule.startTime} — {schedule.endTime}</strong></article>; })}</div></section>}
-      {view === "configuracion" && <section className="admin-panel settings-panel"><div className="demo-notice"><Icon name="sparkles"/><span><strong>Información del negocio</strong>Revisa los datos principales de tu operación.</span></div><div className="form-grid"><label>Nombre del negocio<input value={businessName} readOnly/></label><label>Rubro<input value={vertical === "barberia" ? "Barbería premium" : "Estudio de belleza"} readOnly/></label><label className="full">Dirección<input value={business.address} readOnly/></label><label>Teléfono<input value={business.phone} readOnly/></label><label>Zona horaria<input value="America/Santiago" readOnly/></label></div><button className="button" type="button" disabled>Guardar cambios</button></section>}
+  const businessName = operationalBusinessName(currentBusiness?.businessName ?? "Negocio");
+
+  return <div className="admin-content">
+    <div className="admin-heading">
+      <div>
+        <span className="eyebrow">{businessName.toUpperCase()}</span>
+        <h1>{title}</h1>
+        <p>{subtitle}</p>
+      </div>
+      {view === "citas" && <AdminNewAppointmentPanel businessSlug={navigation.currentBusinessSlug}/>}
+    </div>
+
+    {view === "resumen" && <AdminOverviewPanel overview={overview} businessSlug={navigation.currentBusinessSlug}/>}
+    {view === "citas" && <AdminCalendarPanel
+      calendar={calendar}
+      businessSlug={navigation.currentBusinessSlug}
+      initialAppointmentId={initialAppointmentId}
+    />}
+    {view === "clientes" && <section className="admin-panel">
+      {!customers || customers.status === "error"
+        ? <div className="admin-empty-state"><div><Icon name="calendar"/><h2>No pudimos cargar los clientes</h2><p>{customers?.message ?? "Intenta nuevamente."}</p></div></div>
+        : customers.customers.length === 0
+          ? <div className="admin-empty-state"><div><Icon name="sparkles"/><h2>Aún no hay clientes</h2><p>Los clientes con citas aparecerán aquí.</p></div></div>
+          : <div className="card-list">
+              {customers.customers.map((client) => <article className="entity-card" key={client.id}>
+                <span className="entity-avatar">{client.fullName.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span>
+                <div><h3>{client.fullName}</h3><p>{client.phone}</p></div>
+                <div><small>Correo</small><strong>{client.email ?? "Sin correo registrado"}</strong></div>
+              </article>)}
+            </div>}
+    </section>}
+    {view === "configuracion" && <section className="admin-panel settings-panel">
+      <div className="admin-message admin-message--info">
+        <Icon name="sparkles"/>
+        <span><strong>Información del negocio</strong>Revisa los datos principales de tu operación.</span>
+      </div>
+      <div className="form-grid">
+        <label>Nombre del negocio<input value={businessName} readOnly/></label>
+        <label>Rubro<input value={vertical === "barberia" ? "Barbería premium" : "Estudio de belleza"} readOnly/></label>
+        <label>Zona horaria<input value="America/Santiago" readOnly/></label>
+      </div>
+    </section>}
   </div>;
 }

@@ -5,11 +5,12 @@ import type { AdminCalendarLoadState } from "@/types/admin-calendar";
 
 export const dynamic = "force-dynamic";
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ negocio?: string }> }) {
-  const context = await getAdminPageContext(searchParams, "/admin/citas");
+export default async function Page({ searchParams }: { searchParams: Promise<{ negocio?: string; cita?: string }> }) {
+  const params = await searchParams;
+  const context = await getAdminPageContext(Promise.resolve(params), "/admin/citas");
   const calendar = await loadCalendarSafely(context.business.businessSlug);
 
-  return <AdminPage view="citas" vertical={context.business.vertical} path="/admin/citas" navigation={context.navigation} calendar={calendar}/>;
+  return <AdminPage view="citas" vertical={context.business.vertical} path="/admin/citas" navigation={context.navigation} calendar={calendar} initialAppointmentId={params.cita}/>;
 }
 
 async function loadCalendarSafely(
